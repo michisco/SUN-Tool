@@ -14,6 +14,7 @@ CONFIG -= app_bundle
 SOURCES += \
         AcquisitionSetup.cpp \
         CalibrationCamera.cpp \
+        FileUtilities.cpp \
         main.cpp
 
 # Default rules for deployment.

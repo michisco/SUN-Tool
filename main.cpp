@@ -12,8 +12,9 @@ int main(int argc, char *argv[])
     if (argc < 2) {
         std::cout << "usage: ${TARGET_PATH} [Command] [Optional arguments]\n"
             "Available command:\n"
-            "acquisition - Connect to GoPro cameras to acquire images.\n"
-            "visualize [FOLDER_PATH] - Visualize images in the folder and detect their markers.\n"
+            "acquire - Connect to GoPro cameras to acquire images.\n"
+            "visualize [IMGS_FOLDER_PATH] - Visualize images in the folder and detect their markers.\n"
+            "calibrate [IMGS_FOLDER_PATH] [SAVING_FILE_YML] - Calibrate one camera and save the param file.yml.\n"
             "help - Open the guide." << std::endl;
         return 0;
     }
@@ -23,7 +24,8 @@ int main(int argc, char *argv[])
             std::cout << "usage: ${TARGET_PATH} [Command] [Optional arguments]\n"
                 "Available command:\n"
                 "acquire - Connect to GoPro cameras to acquire images.\n"
-                "visualize [FOLDER_PATH] - Visualize images in the folder and detect their markers.\n"
+                "visualize [IMGS_FOLDER_PATH] - Visualize images in the folder and detect their markers.\n"
+                "calibrate [IMGS_FOLDER_PATH] [SAVING_FILE_YML] - Calibrate one camera and save the param file.yml.\n"
                 "help - Open this guide." << std::endl;
             return 0;
         }
@@ -36,6 +38,17 @@ int main(int argc, char *argv[])
             }
             else {
                 std::cout << "error: missing folder path. usage: ${TARGET_PATH} visualize [FOLDER_PATH]" << std::endl;
+            }
+        }
+        else if (std::string(argv[1]) == "calibrate") {
+            if (argc >= 3) {
+                if (argc >= 4)
+                    CalibrationCamera(argv[2], std::string(argv[3]));
+                else
+                    CalibrationCamera(argv[2], "paramsCam.yml");
+            }
+            else {
+                std::cout << "error: missing folder path. usage: ${TARGET_PATH} calibrate [FOLDER_PATH] [SAVING_FILE_YML]" << std::endl;
             }
         }
         else {
