@@ -1,41 +1,47 @@
 #include "AcquisitionSetup.cpp"
 #include "CalibrationCamera.cpp"
 
-#include <QApplication>
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
-#include <conio.h>
 
 
 int main(int argc, char *argv[])
 {
-    QApplication a(argc, argv);
-
-    char opt_menu;
-    bool isRunning = true;
-
-    while(isRunning){
-        system("cls");
-        std::cout << "Menu SUN tool : " << std::endl;
-        std::cout << "[A]cquisition images from cameras \n"
-                     "[V]isualize markers \n"
-                     "[C]lose" << std::endl;
-        std::cin >> opt_menu;
-
-        switch(opt_menu){
-            case 'a': case 'A': AcquisitionSetup(); break;
-            case 'v': case 'V': VisualizeMarkers(); break;
-            case 'c': case 'C': isRunning = false; break;
-            default:{
-                std::cout << "Command not recognized" << std::endl;
-                std::cout << "Press any key to continue..." << std::endl;
-                getch();
-                break;
+    //check if exist the first argument to set number of iterations
+    if (argc < 2) {
+        std::cout << "usage: ${TARGET_PATH} [Command] [Optional arguments]\n"
+            "Available command:\n"
+            "acquisition - Connect to GoPro cameras to acquire images.\n"
+            "visualize [FOLDER_PATH] - Visualize images in the folder and detect their markers.\n"
+            "help - Open the guide." << std::endl;
+        return 0;
+    }
+    else if (argc >= 2) {
+        if (std::string(argv[1]) == "help" || argv[1][0] == 'H' || argv[1][0] == 'h') {
+            std::cout << "--- Help ---" << std::endl;
+            std::cout << "usage: ${TARGET_PATH} [Command] [Optional arguments]\n"
+                "Available command:\n"
+                "acquire - Connect to GoPro cameras to acquire images.\n"
+                "visualize [FOLDER_PATH] - Visualize images in the folder and detect their markers.\n"
+                "help - Open this guide." << std::endl;
+            return 0;
+        }
+        else if (std::string(argv[1]) == "acquire") {
+            AcquisitionSetup();
+        }
+        else if (std::string(argv[1]) == "visualize") {
+            if (argc >= 3) {
+                VisualizeMarkers(argv[2]);
             }
+            else {
+                std::cout << "error: missing folder path. usage: ${TARGET_PATH} visualize [FOLDER_PATH]" << std::endl;
+            }
+        }
+        else {
+            std::cout << "error: command not recognized. Use: ${TARGET_PATH} help" << std::endl;
         }
     }
 
-    return a.exec();
-    //return 0;
+    return 0;
 }

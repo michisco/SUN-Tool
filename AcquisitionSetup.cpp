@@ -17,7 +17,7 @@ AcquisitionSetup::AcquisitionSetup(){
         std::cout << "- Acquisition Setup -" << std::endl;
         if(!isConnectedArduino){
             std::cout << "[C]onnect Arduino \n"
-                         "[B]ack" << std::endl;
+                         "[E]xit" << std::endl;
         }
         else{
             system("cls");
@@ -27,7 +27,7 @@ AcquisitionSetup::AcquisitionSetup(){
                          "[L]ight intensity value \n"
                          "[I]nfo cameras \n"
                          "[C]lose Arduino \n"
-                         "[B]ack" << std::endl;
+                         "[E]xit" << std::endl;
         }
 
         std::cin >> opt_menu;
@@ -35,7 +35,7 @@ AcquisitionSetup::AcquisitionSetup(){
         if(!isConnectedArduino){
             switch(opt_menu){
                 case 'c': case 'C': on_startArduino(); break;
-                case 'b': case 'B': isRunningAcquisition = false; break;
+                case 'e': case 'E': isRunningAcquisition = false; break;
                 default:{
                     std::cout << "Command not recognized" << std::endl;
                     std::cout << "Press any key to continue..." << std::endl;
@@ -72,7 +72,7 @@ AcquisitionSetup::AcquisitionSetup(){
                 }
                 case 'i': case 'I': printInfoCamera(); break;
                 case 'c': case 'C': resetAll(); break;
-                case 'b': case 'B': isRunningAcquisition = false; break;
+                case 'e': case 'E': isRunningAcquisition = false; break;
                 default:{
                     std::cout << "Command not recognized" << std::endl;
                     std::cout << "Press any key to continue..." << std::endl;

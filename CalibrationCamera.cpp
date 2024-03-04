@@ -14,15 +14,14 @@
 #include <filesystem>
 namespace fs = std::filesystem;
 
-static inline int VisualizeMarkers() {
+static inline int VisualizeMarkers(char folder_path[]) {
 
-    system("cls");
-    std::string path = "";
     std::vector<std::string> imgs;
+    /*std::string path = "";
     std::cout << "Insert the folder with images: " << std::endl;
-    std::cin >> path;
+    std::cin >> path;*/
 
-    for (const auto & entry : fs::directory_iterator(path))
+    for (const auto & entry : fs::directory_iterator(folder_path))
         imgs.push_back(entry.path().string());
 
     cv::Mat image, imageCopy;
@@ -39,7 +38,7 @@ static inline int VisualizeMarkers() {
     for (int k = 0; k < imgs.size(); k++) {
         image = cv::imread(imgs.at(k));
         image.copyTo(imageCopy);
-
+        
         // Error Handling
         if (image.empty()) {
             std::string errorMsg = "Image " + imgs.at(k);
@@ -56,6 +55,7 @@ static inline int VisualizeMarkers() {
         }
 
         cv::imshow("out", imageCopy);
+        std::cout << "Visualizing image " << imgs.at(k).c_str() << std::endl;
         // Wait for any keystroke
         cv::waitKey(0);
         std::string path = "visual_" + std::to_string(k) + ".jpg";
