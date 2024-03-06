@@ -14,6 +14,7 @@ CONFIG -= app_bundle
 SOURCES += \
         AcquisitionSetup.cpp \
         CalibrationCamera.cpp \
+        DevicesPose.cpp \
         FileUtilities.cpp \
         main.cpp
 
@@ -23,7 +24,8 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 !isEmpty(target.path): INSTALLS += target
 
 HEADERS += \
-    AcquisitionSetup.h
+    AcquisitionSetup.h \
+    ObjectMarkers.h
 
 ROOT_DIR = $${PWD}\..\..\..\..\..\..
 OPENCV_DIR = $${ROOT_DIR}\OpenCV
