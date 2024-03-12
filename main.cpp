@@ -2,6 +2,7 @@
 #include "AcquisitionSetup.cpp"
 #include "CalibrationCamera.cpp"
 #include "DevicesPose.cpp"
+#include "ObjectsPose.cpp"
 
 #include <stdio.h>
 #include <iostream>
@@ -19,11 +20,12 @@ int main(int argc, char *argv[])
             "calibrate [IMGS_FOLDER_PATH] [SAVING_FILE_YML] - Calibrate one camera and save the param file.yml.\n"
             "camera_position [IMGS_FOLDER_PATH] - Compute camera position from image and save it into a file.yml.\n"
             "object_position - Compute object position and save it into a file.yml.\n"
+            "hand_position - Compute hand device position and save it into a file.yml.\n"
             "help - Open the guide." << std::endl;
         return 0;
     }
     else if (argc >= 2) {
-        if (std::string(argv[1]) == "help" || argv[1][0] == 'H' || argv[1][0] == 'h') {
+        if (std::string(argv[1]) == "help" || argv[1][0] == 'H') {
             std::cout << "--- Help ---" << std::endl;
             std::cout << "usage: ${TARGET_PATH} [Command] [Optional arguments]\n"
                 "Available command:\n"
@@ -32,6 +34,7 @@ int main(int argc, char *argv[])
                 "calibrate [IMGS_FOLDER_PATH] [SAVING_FILE_YML] - Calibrate one camera and save the param file.yml.\n"
                 "camera_position [IMGS_FOLDER_PATH] - Compute camera position from image and save it into a file.yml.\n"
                 "object_position - Compute object position and save it into a file.yml.\n"
+                "hand_position - Compute hand device position and save it into a file.yml.\n"
                 "help - Open this guide." << std::endl;
             return 0;
         }
@@ -67,6 +70,9 @@ int main(int argc, char *argv[])
         }
         else if (std::string(argv[1]) == "object_position") {
             EstimateObjectPose();
+        }
+        else if (std::string(argv[1]) == "hand_position") {
+            EstimateHandPose();
         }
         else {
             std::cout << "error: command not recognized. Use: ${TARGET_PATH} help" << std::endl;

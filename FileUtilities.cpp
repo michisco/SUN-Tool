@@ -34,21 +34,29 @@ inline static bool saveCameraPose(const std::string& filename, cv::Vec3d r, cv::
     return true;
 }
 
-inline static bool saveObjectPose(const std::string& filename, std::vector<cv::Matx44d> m, int nframes) {
+inline static bool saveObjectPose(const std::string& filename, std::vector<cv::Matx44d> m, std::vector<cv::Vec3d> r, std::vector <cv::Vec3d> t, int nframes) {
 
-    cv::FileStorage fs(filename, cv::FileStorage::WRITE);
+    std::string pathFile = filename + ".yml";
+    cv::FileStorage fs(pathFile, cv::FileStorage::WRITE);
     if (!fs.isOpened())
         return false;
 
     char buf[1024];
 
+    fs << "frames" << "[";
     for (int i = 0; i < nframes; i++) {
-        fs << "frames" << i;
+        fs << "{";
+        fs << "frame" << i;
+        fs << "rvec" << r[i];
+        fs << "tvec" << t[i];
         fs << "matrix" << m[i];
+        fs << "}";
     }
+    fs << "]";
 
     // Create and open a text file
-    std::ofstream MyFile("Resources/ObjectPose_MeshLab.txt");
+    std::string meshLabFile = filename + "_MeshLab.txt";
+    std::ofstream MyFile(meshLabFile);
 
     for (int i = 0; i < nframes; i++) {
         for (int j = 0; j < m[i].rows; j++) {
@@ -81,5 +89,31 @@ inline static bool readCameraPose(const std::string filename, cv::Vec3d& r, cv::
 
     fs["rvec"] >> r;
     fs["tvec"] >> t;
+    return true;
+}
+
+inline static bool readObjectPose(const std::string filename, std::vector<cv::Vec3d> &r, std::vector <cv::Vec3d> &t, std::vector<cv::Matx44d> &m) {
+    cv::FileStorage fs(filename, cv::FileStorage::READ);
+    if (!fs.isOpened())
+        return false;
+
+    cv::FileNode fn = fs["frames"];
+    for (cv::FileNodeIterator it = fn.begin(); it != fn.end(); it++)
+    {
+        cv::FileNode item = *it;
+
+        cv::Vec3d r_temp, t_temp, id_frame;
+        cv::Matx44d m_temp;
+
+        item["frame"] >> id_frame;
+        item["rvec"] >> r_temp;
+        item["tvec"] >> t_temp;
+        item["matrix"] >> m_temp;
+
+        r.push_back(r_temp);
+        t.push_back(t_temp);
+        m.push_back(m_temp);
+    }
+
     return true;
 }

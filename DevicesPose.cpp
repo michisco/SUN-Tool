@@ -10,7 +10,7 @@
 
 #include <iostream>
 
-struct ObjectData {
+struct FingerData {
     std::vector<int>  id_marker;
     std::vector<cv::Point3f> pos3D_marker;
     std::vector<cv::Point2f> pos2D_marker;
@@ -18,18 +18,22 @@ struct ObjectData {
     cv::Vec3d tvec_cam;
     cv::Vec3d rvec_cam;
 
+    cv::Vec3d tvec_obj;
+    cv::Vec3d rvec_obj;
+    cv::Matx44d mat_obj;
+
     cv::Mat cam_matrix;
     cv::Mat dist_coeffs;
 };
 
-class SolveObjectPose : public cv::LMSolver::Callback
+class SolveFingerPose : public cv::LMSolver::Callback
 {
     int npoints;
-    std::vector<ObjectData>* objectData;
+    std::vector<FingerData>* objectData;
     std::vector<cv::Point3f> objPoints;
 
 public:
-    SolveObjectPose(std::vector<ObjectData>* objdatas) //SolveObjectPose(InputArray _opoints, InputArray _ipoints, InputArray _cameraPosition /*,InputArray _cameraMatrix, InputArray _distCoeffs)
+    SolveFingerPose(std::vector<FingerData>* objdatas) //SolveObjectPose(InputArray _opoints, InputArray _ipoints, InputArray _cameraPosition /*,InputArray _cameraMatrix, InputArray _distCoeffs)
     {
         npoints = 0;
         objectData = objdatas;
@@ -133,15 +137,15 @@ public:
     }
 };
 
-static inline bool CheckObjectIDs(std::vector<int> idsObject, int idToCheck){
-    for(int i = 0; i < idsObject.size(); i++){
-        if(idsObject.at(i) == idToCheck)
+static inline bool CheckFingerIDs(std::vector<int> idsFinger, int idToCheck){
+    for(int i = 0; i < idsFinger.size(); i++){
+        if(idsFinger.at(i) == idToCheck)
             return true;
     }
     return false;
 }
 
-static inline void ReadObjectCoordinates(std::string marker_3ds, ObjectMarkers* info) {
+static inline void ReadHandCoordinates(std::string marker_3ds, std::vector<ObjectMarkers>* finger_info) {
     std::vector<std::string> row;
     std::string line, word;
 
@@ -149,6 +153,7 @@ static inline void ReadObjectCoordinates(std::string marker_3ds, ObjectMarkers* 
     if (file.is_open())
     {
         int i = 0;
+        int markers_perFinger = 0;
         while (getline(file, line))
         {
             row.clear();
@@ -158,9 +163,13 @@ static inline void ReadObjectCoordinates(std::string marker_3ds, ObjectMarkers* 
                 row.push_back(word);
 
             if (i > 0) {
-                info->Set(stoi(row[0]), cv::Point3f(stof(row[1]), stof(row[2]), stof(row[3])));
+                finger_info->at(markers_perFinger).Set(stoi(row[0]), cv::Point3f(stof(row[1]), stof(row[2]), stof(row[3])));
+
+                if (i % 4 == 0)
+                    markers_perFinger++;
             }
             i++;
+            
         }
         file.close();
     }
@@ -168,16 +177,16 @@ static inline void ReadObjectCoordinates(std::string marker_3ds, ObjectMarkers* 
         std::cout << "Could not open the file\n";
 }
 
-static inline void ComputeObjectPose(std::vector<ObjectData> *objdatas, cv::InputOutputArray _rvec, cv::InputOutputArray _tvec){
+static inline void ComputeFingerPose(std::vector<FingerData>* objdatas, cv::InputOutputArray _rvec, cv::InputOutputArray _tvec) {
     cv::Mat rvec0 = _rvec.getMat(), tvec0 = _tvec.getMat();
     cv::Mat params(6, 1, CV_64FC1);
     for (int i = 0; i < 3; i++)
     {
-        params.at<double>(i,0) = rvec0.at<double>(i,0);
-        params.at<double>(i+3,0) = tvec0.at<double>(i,0);
+        params.at<double>(i, 0) = rvec0.at<double>(i, 0);
+        params.at<double>(i + 3, 0) = tvec0.at<double>(i, 0);
     }
 
-    auto createLM = cv::LMSolver::create(cv::makePtr<SolveObjectPose>(objdatas), 1000, 0.01);
+    auto createLM = cv::LMSolver::create(cv::makePtr<SolveFingerPose>(objdatas), 1000, 0.01);
     int itr = createLM->run(params);
     int itr2 = createLM->run(params);
 
@@ -185,11 +194,181 @@ static inline void ComputeObjectPose(std::vector<ObjectData> *objdatas, cv::Inpu
     params.rowRange(3, 6).convertTo(tvec0, tvec0.depth());
 }
 
-static inline int EstimateObjectPose() {
+static inline int EstimateFingerPose(std::vector<std::string> imgs_FCam,
+                                     std::vector<std::string> imgs_TCam,
+                                     std::vector<std::string> imgs_LCam, 
+                                     std::vector<std::string> imgs_RCam, 
+                                     std::vector<cv::Mat> camMatrix, 
+                                     std::vector<cv::Mat> distCoeffs,
+                                     std::vector<cv::Vec3d> cam_tvecs,
+                                     std::vector<cv::Vec3d> cam_rvecs,
+                                     std::vector<cv::Vec3d> obj_rvecs,
+                                     std::vector<cv::Vec3d> obj_tvecs,
+                                     std::vector<cv::Matx44d> obj_mats,
+                                     ObjectMarkers marker_info) {
+    
+
+    std::vector<FingerData> markers_data;
+    std::string id_finger = "0";
+
+    if (marker_info.GetIds()[0] == 200)
+        id_finger = "0";
+    else if (marker_info.GetIds()[0] == 204)
+        id_finger = "1";
+    else if (marker_info.GetIds()[0] == 208)
+        id_finger = "2";
+    else if (marker_info.GetIds()[0] == 212)
+        id_finger = "3";
+
+        
+    std::cout << "Computing pose for finger: " << id_finger << std::endl;
+
+    cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
+    cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+    cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+
+    std::vector<cv::Matx44d> fingerPose_frames;
+    std::vector<cv::Mat> frame_imgs;
+
+    //compute position finger on each time frame
+    for (int k = 0; k < imgs_FCam.size(); k++) {
+        cv::Mat img_FCam, img_TCam, img_LCam, img_RCam;
+        img_FCam = cv::imread(imgs_FCam.at(k));
+        img_TCam = cv::imread(imgs_TCam.at(k));
+        img_LCam = cv::imread(imgs_LCam.at(k));
+        img_RCam = cv::imread(imgs_RCam.at(k));
+
+        std::cout << "Analizing images: " << imgs_FCam.at(k) <<
+            ", " << imgs_TCam.at(k) <<
+            ", " << imgs_LCam.at(k) <<
+            ", " << imgs_RCam.at(k) << std::endl;
+
+        // Error Handling
+        if (img_FCam.empty()
+            || img_TCam.empty()
+            || img_LCam.empty()
+            || img_RCam.empty()) {
+            std::cout << "Image files are empty." << std::endl;
+            return 0;
+        }
+
+        /* cv::namedWindow("out", cv::WINDOW_NORMAL);
+         cv::resizeWindow("out", 1280, 720);*/
+
+        frame_imgs.push_back(img_FCam);
+        frame_imgs.push_back(img_LCam);
+        frame_imgs.push_back(img_RCam);
+        frame_imgs.push_back(img_TCam);
+
+        cv::Mat imageCopy;
+
+        //see different view of the object
+        for (int i = 0; i < frame_imgs.size(); i++) {
+            std::vector<int> ids;
+            std::vector<std::vector<cv::Point2f> > corners, cornersNotRejected;
+            frame_imgs[i].copyTo(imageCopy);
+
+            detector.detectMarkers(frame_imgs.at(i), corners, ids);
+
+            FingerData temp_markerData;
+
+            if (!ids.empty()) {
+                // Calculate 2d pose for each marker
+                for (size_t j = 0; j < ids.size(); j++) {
+                    if (CheckFingerIDs(marker_info.GetIds(), ids.at(j))) {
+                        cornersNotRejected.push_back(corners[j]);
+                        // Find 2d pose
+                        float x_sum = corners[j][0].x + corners[j][1].x + corners[j][2].x + corners[j][3].x;
+                        float y_sum = corners[j][0].y + corners[j][1].y + corners[j][2].y + corners[j][3].y;
+
+                        cv::Point2f center_marker = cv::Point2f(x_sum * .25f, y_sum * .25f);
+
+                        //save each single marker found on the struct data array to give to the function later
+                        auto [idMarker, posMarker] = marker_info.FindByID(ids.at(j));
+                        if (idMarker != 0) {
+                            temp_markerData.id_marker.push_back(idMarker);
+                            temp_markerData.pos3D_marker.push_back(posMarker);
+                        }
+                        else
+                            std::cout << "error" << std::endl;
+                        temp_markerData.pos2D_marker.push_back(center_marker);
+                    }
+                }
+
+                //if (!temp_markerData.id_marker.empty()) {
+                //    cv::aruco::drawDetectedMarkers(imageCopy, cornersNotRejected, temp_markerData.id_marker);
+                //}
+
+                //cv::imshow("out", imageCopy);
+                //// Wait for any keystroke
+                //cv::waitKey(0);
+
+                if (!temp_markerData.id_marker.empty()) {
+                    //save camera params
+                    temp_markerData.rvec_cam = cam_rvecs.at(i);
+                    temp_markerData.tvec_cam = cam_tvecs.at(i);
+                    temp_markerData.cam_matrix = camMatrix.at(i);
+                    temp_markerData.dist_coeffs = distCoeffs.at(i);
+                    temp_markerData.rvec_obj = obj_rvecs.at(k);
+                    temp_markerData.tvec_obj = obj_tvecs.at(k);
+                    temp_markerData.mat_obj = obj_mats.at(k);
+
+                    markers_data.push_back(temp_markerData);
+                }            
+            }
+        }
+        frame_imgs.clear();
+    }
+
+    std::vector<int> marker_ids = marker_info.GetIds();
+    int count = 0;
+    for (int j = 0; j < marker_ids.size(); j++) {
+        for (int i = 0; i < markers_data.size(); i++) {
+            for(int z = 0; z < markers_data.at(i).id_marker.size(); z++)
+            if (markers_data.at(i).id_marker.at(z) == marker_ids.at(j)) {
+                count++;
+            }
+        }
+    }
+    
+    if (count < 6) {
+        std::cout << "Too few marker detected times: " << count << "for finger " << id_finger << std::endl;
+        return -1;
+    }
+
+    //cv::Mat rvec_temp = cv::Mat::zeros(3,3, CV_64F);
+    cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64F);
+    //cv::Rodrigues(rvec_temp, rvec);
+
+    rvec.at<double>(0, 0) = 1;
+    rvec.at<double>(1, 0) = 1;
+    rvec.at<double>(2, 0) = 1;
+
+    cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64F);
+    ComputeFingerPose(&markers_data, rvec, tvec);
+
+    cv::Affine3d res(rvec, tvec);
+    //fingerPose_frames.push_back(res.matrix);
+
+    for (int i = 0; i < res.matrix.rows; i++) {
+        for (int j = 0; j < res.matrix.cols; j++)
+            std::cout << res.matrix(i,j) << std::endl;
+    }
+
+   /* std::string filename = "Resources/fingerPose_" + id_finger;
+    bool saveOk = saveObjectPose(
+        filename, fingerPose_frames, imgs_FCam.size());
+
+    if (!saveOk)
+        std::cout << "Error saving file" << std::endl;*/
+
+    return 1;
+}
+
+static inline int EstimateHandPose() {
 
     std::vector<cv::Mat> camMatrix, distCoeffs;
-    std::vector<ObjectData> markers_data;
-    ObjectMarkers marker_info = ObjectMarkers();
+    std::vector<ObjectMarkers> marker_fingers{ObjectMarkers(), ObjectMarkers(), ObjectMarkers(), ObjectMarkers()};
 
     //get all images in the folder
     std::vector<std::string> imgs_FCam;
@@ -197,38 +376,38 @@ static inline int EstimateObjectPose() {
         imgs_FCam.push_back(entry.path().string());
 
     std::sort(imgs_FCam.begin(), imgs_FCam.end(),
-                  [](const auto& lhs, const auto& rhs) {
-                      return lhs < rhs;
-                  });
+        [](const auto& lhs, const auto& rhs) {
+            return lhs < rhs;
+        });
 
     std::vector<std::string> imgs_TCam;
     for (const auto& entry : fs::directory_iterator("Data/Top"))
         imgs_TCam.push_back(entry.path().string());
 
     std::sort(imgs_TCam.begin(), imgs_TCam.end(),
-                  [](const auto& lhs, const auto& rhs) {
-                      return lhs < rhs;
-                  });
+        [](const auto& lhs, const auto& rhs) {
+            return lhs < rhs;
+        });
 
     std::vector<std::string> imgs_LCam;
     for (const auto& entry : fs::directory_iterator("Data/Left"))
         imgs_LCam.push_back(entry.path().string());
 
     std::sort(imgs_LCam.begin(), imgs_LCam.end(),
-                  [](const auto& lhs, const auto& rhs) {
-                      return lhs < rhs;
-                  });
+        [](const auto& lhs, const auto& rhs) {
+            return lhs < rhs;
+        });
 
     std::vector<std::string> imgs_RCam;
     for (const auto& entry : fs::directory_iterator("Data/Right"))
         imgs_RCam.push_back(entry.path().string());
 
     std::sort(imgs_RCam.begin(), imgs_RCam.end(),
-                  [](const auto& lhs, const auto& rhs) {
-                      return lhs < rhs;
-                  });
+        [](const auto& lhs, const auto& rhs) {
+            return lhs < rhs;
+        });
 
-    std::string _3dMarkerFile = "Resources/ObjectMarkers.csv";
+    std::string _3dMarkerFile = "Resources/HandMarkers.csv";
 
     //get all camera params files
     std::vector<std::string> _paramsFiles;
@@ -272,123 +451,22 @@ static inline int EstimateObjectPose() {
         cam_tvecs.push_back(temp_t);
     }
 
-    cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
-    cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
-    cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+    //get position of object in all frames
+    std::vector<cv::Vec3d> object_tvecs;
+    std::vector<cv::Vec3d> object_rvecs;
+    std::vector<cv::Matx44d> object_mats;
+
+    std::string _objPoseFile = "Resources/objectPose.yml";
+    bool readOk = readObjectPose(_objPoseFile, object_rvecs, object_tvecs, object_mats);
 
     //get 3d position markers on the object
-    ReadObjectCoordinates(_3dMarkerFile, &marker_info);
+    ReadHandCoordinates(_3dMarkerFile, &marker_fingers);
 
-    std::vector<cv::Matx44d> objPose_frames;
-    std::vector<cv::Mat> frame_imgs;
-
-    //compute position object on each time frame
-    for (int k = 0; k < imgs_FCam.size(); k++) {
-        cv::Mat img_FCam, img_TCam, img_LCam, img_RCam;
-        img_FCam = cv::imread(imgs_FCam.at(k));
-        img_TCam = cv::imread(imgs_TCam.at(k));
-        img_LCam = cv::imread(imgs_LCam.at(k));
-        img_RCam = cv::imread(imgs_RCam.at(k));
-
-        std::cout << "Analizing images: " << imgs_FCam.at(k) << 
-            ", " << imgs_TCam.at(k) <<
-            ", " << imgs_LCam.at(k) << 
-            ", " << imgs_RCam.at(k) << std::endl;
-
-        // Error Handling
-        if (img_FCam.empty()
-                || img_TCam.empty()
-                || img_LCam.empty()
-                || img_RCam.empty()) {
-            std::cout << "Image files are empty." << std::endl;
-            return 0;
-        }
-
-       /* cv::namedWindow("out", cv::WINDOW_NORMAL);
-        cv::resizeWindow("out", 1280, 720);*/
-
-        frame_imgs.push_back(img_FCam);
-        frame_imgs.push_back(img_LCam);
-        frame_imgs.push_back(img_RCam);
-        frame_imgs.push_back(img_TCam);
-
-        cv::Mat imageCopy;
-        //see different view of the object
-        for (int i = 0; i < frame_imgs.size(); i++){
-            std::vector<int> ids;
-            std::vector<std::vector<cv::Point2f> > corners, cornersNotRejected;
-            frame_imgs[i].copyTo(imageCopy);
-
-            detector.detectMarkers(frame_imgs.at(i), corners, ids);
-
-            ObjectData temp_markerData;
-
-            if(!ids.empty()) {          
-                // Calculate 2d pose for each marker
-                for (size_t  j = 0; j < ids.size(); j++) {
-                    if(CheckObjectIDs(marker_info.GetIds(), ids.at(j))){
-                        cornersNotRejected.push_back(corners[j]);
-                        // Find 2d pose
-                        float x_sum = corners[j][0].x + corners[j][1].x + corners[j][2].x + corners[j][3].x;
-                        float y_sum = corners[j][0].y + corners[j][1].y + corners[j][2].y + corners[j][3].y;
-
-                        cv::Point2f center_marker = cv::Point2f(x_sum*.25f, y_sum*.25f);
-
-                        //save each single marker found on the struct data array to give to the function later
-                        auto [idMarker, posMarker] = marker_info.FindByID(ids.at(j));
-                        if(idMarker != 0){
-                            temp_markerData.id_marker.push_back(idMarker);
-                            temp_markerData.pos3D_marker.push_back(posMarker);
-                        }
-                        else
-                            std::cout << "error" << std::endl;
-                        temp_markerData.pos2D_marker.push_back(center_marker);
-                    }
-                }
-            }
-
-            //if (!temp_markerData.id_marker.empty()) {
-            //    cv::aruco::drawDetectedMarkers(imageCopy, cornersNotRejected, temp_markerData.id_marker);
-            //}
-
-            //cv::imshow("out", imageCopy);
-            //// Wait for any keystroke
-            //cv::waitKey(0);
-
-            if (!temp_markerData.id_marker.empty()) {
-                //save camera params
-                temp_markerData.rvec_cam = cam_rvecs.at(i);
-                temp_markerData.tvec_cam = cam_tvecs.at(i);
-                temp_markerData.cam_matrix = camMatrix.at(i);
-                temp_markerData.dist_coeffs = distCoeffs.at(i);
-
-                markers_data.push_back(temp_markerData);
-            }    
-        }
-
-        //cv::Mat rvec_temp = cv::Mat::zeros(3,3, CV_64F);
-        cv::Mat rvec = cv::Mat::zeros(3,1, CV_64F);
-        //cv::Rodrigues(rvec_temp, rvec);
-
-        rvec.at<double>(0,0) = 1;
-        rvec.at<double>(1,0) = 1;
-        rvec.at<double>(2,0) = 1;
-
-        cv::Mat tvec = cv::Mat::zeros(3,1, CV_64F);
-        ComputeObjectPose(&markers_data, rvec, tvec);
-
-        cv::Affine3d res(rvec, tvec);
-        objPose_frames.push_back(res.matrix);
-
-        markers_data.clear();
-        frame_imgs.clear();
-    }
-
-    bool saveOk = saveObjectPose(
-        "Resources/objectPose.yml", objPose_frames, imgs_FCam.size());
-
-    if (!saveOk)
-       std::cout << "Error saving file" << std::endl;
-
+    //get pose for each finger of the hand device
+    for (int i = 0; i < marker_fingers.size(); i++) {
+        int res = EstimateFingerPose(imgs_FCam, imgs_TCam, imgs_LCam, imgs_RCam, camMatrix, distCoeffs, cam_tvecs, cam_rvecs, object_rvecs, object_tvecs, object_mats, marker_fingers.at(i));
+        if (res < 0)
+            return -1;
+    }   
     return 1;
 }

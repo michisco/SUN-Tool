@@ -16,6 +16,7 @@ SOURCES += \
         CalibrationCamera.cpp \
         DevicesPose.cpp \
         FileUtilities.cpp \
+        ObjectsPose.cpp \
         main.cpp
 
 # Default rules for deployment.
