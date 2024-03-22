@@ -2,44 +2,57 @@
 
 #include <QtSerialPort/QSerialPort>
 #include <QtSerialPort/QSerialPortInfo>
+#include <viewerWorker.h>
 #include <QDebug>
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
 #include <conio.h>
+#include <string.h>
 
 AcquisitionSetup::AcquisitionSetup(){
     bool isRunningAcquisition = true;
     char opt_menu;
 
     while(isRunningAcquisition){
-        system("cls");
+        //system("cls");
         std::cout << "- Acquisition Setup -" << std::endl;
-        if(!isConnectedArduino){
-            std::cout << "[C]onnect Arduino \n"
+        if(!isConnectedArduino || !isConnectedHand){
+            std::cout << "[C]onnect Arduino&Device \n"
                          "[E]xit" << std::endl;
         }
         else{
-            system("cls");
+            //system("cls");
             std::cout << "Cameras connected " << n_camera_connected <<"/4 - Light intensity value: " << curr_intensityValue << std::endl;
             std::cout << "[T]ake pictures \n"
                          "[M]ode video/photo \n"
                          "[L]ight intensity value \n"
                          "[I]nfo cameras \n"
-                         "[C]lose Arduino \n"
+                         "[R]otate hand device \n"
+                         //"[C]lose Arduino&Device \n"
                          "[E]xit" << std::endl;
+
+            while (arduino->waitForReadyRead(1500)) {
+                arduinoReadData();
+            }
+
+            while (hand_device->waitForReadyRead(1500)) {
+                handReadData();
+            }
         }
 
         std::cin >> opt_menu;
 
-        if(!isConnectedArduino){
+        
+
+        if(!isConnectedArduino || !isConnectedHand){
             switch(opt_menu){
                 case 'c': case 'C': on_startArduino(); break;
                 case 'e': case 'E': isRunningAcquisition = false; break;
                 default:{
                     std::cout << "Command not recognized" << std::endl;
-                    std::cout << "Press any key to continue..." << std::endl;
-                    getch();
+                    //std::cout << "Press any key to continue..." << std::endl;
+                    //getch();
                     break;
                 }
             }
@@ -64,87 +77,154 @@ AcquisitionSetup::AcquisitionSetup(){
                     break;
                 }
                 case 'l': case 'L':{
-                    system("cls");
+                    //system("cls");
                     std::cout << "Set intensity light: [0 - 1023] " << std::endl;
                     std::cin >> curr_intensityValue;
                     LightUpdateValue(curr_intensityValue);
                     break;
                 }
+                case 'r': case 'R': {
+                    //system("cls");
+                    std::string command = "s 10 2";
+                    std::cout << "Set steps and velocity: {example: s 10 2} " << std::endl;
+                    std::getline(std::cin >> std::ws, command);
+                   
+                    QString val = QString::fromStdString(command);
+                    handSendCommand(QString("%1").arg(val));
+                    break;
+                }
                 case 'i': case 'I': printInfoCamera(); break;
-                case 'c': case 'C': resetAll(); break;
+                //case 'c': case 'C': resetAll(); break;
                 case 'e': case 'E': isRunningAcquisition = false; break;
                 default:{
                     std::cout << "Command not recognized" << std::endl;
-                    std::cout << "Press any key to continue..." << std::endl;
-                    getch();
+                    //std::cout << "Press any key to continue..." << std::endl;
+                    //getch();
                     break;
                 }
             }
         }
-
     }
 
     resetAll();
 }
 
 void AcquisitionSetup::on_startArduino(){
-    arduino_is_available = false;
-    arduino_port_name = "";
+    
+    if (!isConnectedArduino) {
+        arduino_is_available = false;
+        arduino_port_name = "";
 
-    serialBuffer_arduino = "";
-    arduino = new QSerialPort;
-    foreach(const QSerialPortInfo &serialPortInfo, QSerialPortInfo::availablePorts())
-    {
-        if(serialPortInfo.hasVendorIdentifier() && serialPortInfo.hasProductIdentifier())
+        serialBuffer_arduino = "";
+        arduino = new QSerialPort;
+
+        foreach(const QSerialPortInfo & serialPortInfo, QSerialPortInfo::availablePorts())
         {
-            if(serialPortInfo.vendorIdentifier() == 4292)
+            if (serialPortInfo.hasVendorIdentifier() && serialPortInfo.hasProductIdentifier())
             {
-                if(serialPortInfo.productIdentifier() == 60000)
+                if (serialPortInfo.vendorIdentifier() == 4292)
                 {
-                    arduino_port_name = serialPortInfo.portName();
-                    arduino_is_available = true;
+                    if (serialPortInfo.productIdentifier() == 60000)
+                    {
+                        arduino_port_name = serialPortInfo.portName();
+                        arduino_is_available = true;
+                    }
                 }
+            }
+
+            if (arduino_is_available)
+            {
+                // open and configure the port
+                arduino->setPortName(arduino_port_name);
+                arduino->open(QSerialPort::ReadWrite);
+                arduino->setBaudRate(QSerialPort::Baud115200);
+                arduino->setDataBits(QSerialPort::Data8);
+                arduino->setParity(QSerialPort::NoParity);
+                arduino->setStopBits(QSerialPort::OneStop);
+                arduino->setFlowControl(QSerialPort::NoFlowControl);
+                arduino->setDataTerminalReady(true);
+                QObject::connect(arduino, SIGNAL(readyRead()), this, SLOT(arduinoReadData()));
+                QObject::connect(arduino, SIGNAL(errorOccurred(QSerialPort::SerialPortError)), this, SLOT(handleError(QSerialPort::SerialPortError)));
+
+                /*if (hand_is_available) {
+                    ui->RemoteActivator->setEnabled(true);
+                    ui->messageBox->setVisible(false);
+                    ui->dialogButton->setVisible(false);
+                    ui->retryButton->setVisible(false);
+                }*/
+
+                QString val = "on";
+                arduinoUpdateValue(QString("%1").arg(val));
+
+                LightUpdateValue(curr_intensityValue);
+
+                isConnectedArduino = true;
+                break;
             }
         }
 
-        if(arduino_is_available)
-        {
-            // open and configure the port
-            arduino->setPortName(arduino_port_name);
-            arduino->open(QSerialPort::ReadWrite);
-            arduino->setBaudRate(QSerialPort::Baud115200);
-            arduino->setDataBits(QSerialPort::Data8);
-            arduino->setParity(QSerialPort::NoParity);
-            arduino->setStopBits(QSerialPort::OneStop);
-            arduino->setFlowControl(QSerialPort::NoFlowControl);
-            arduino->setDataTerminalReady(true);
-            QObject::connect(arduino, SIGNAL(readyRead()), this, SLOT(arduinoReadData()));
-            QObject::connect(arduino, SIGNAL(errorOccurred(QSerialPort::SerialPortError)), this, SLOT(handleError(QSerialPort::SerialPortError)));
+        if (!arduino_is_available) {
+            // give error message
+            std::cout << "Couldn't find the Arduino!" << std::endl;
 
-            /*if (hand_is_available) {
-                ui->RemoteActivator->setEnabled(true);
-                ui->messageBox->setVisible(false);
-                ui->dialogButton->setVisible(false);
-                ui->retryButton->setVisible(false);
-            }*/
-
-            QString val = "on";
-            arduinoUpdateValue(QString("%1").arg(val));
-
-            LightUpdateValue(curr_intensityValue);
-
-            isConnectedArduino = true;
-            return;
+            //std::cout << "Press any key to continue..." << std::endl;
+            //getch();
         }
     }
+    
+    if (!isConnectedHand) {
+        hand_is_available = false;
+        hand_port_name = "";
 
-    if(!arduino_is_available){
-        // give error message
-        std::cout << "Couldn't find the Arduino!" << std::endl;
+        serialBuffer_hand = "";
+        hand_device = new QSerialPort;
+        foreach(const QSerialPortInfo & serialPortInfo, QSerialPortInfo::availablePorts())
+        {
+            if (serialPortInfo.vendorIdentifier() == 6790)
+            {
+                if (serialPortInfo.productIdentifier() == 29986)
+                {
+                    hand_port_name = serialPortInfo.portName();
+                    hand_is_available = true;
+                }
+            }
 
-        std::cout << "Press any key to continue..." << std::endl;
-        getch();
-    }
+            if (hand_is_available)
+            {
+                //open and configure the port
+                hand_device->setPortName(hand_port_name);
+                std::cout << hand_port_name.toStdString() << std::endl;
+                bool isopen = hand_device->open(QSerialPort::ReadWrite);
+                hand_device->setBaudRate(QSerialPort::Baud115200);
+                hand_device->setDataBits(QSerialPort::Data8);
+                hand_device->setParity(QSerialPort::NoParity);
+                hand_device->setStopBits(QSerialPort::OneStop);
+                hand_device->setFlowControl(QSerialPort::NoFlowControl);
+                hand_device->setDataTerminalReady(true);
+
+                QObject::connect(hand_device, SIGNAL(readyRead()), this, SLOT(handReadData()));
+                QObject::connect(hand_device, SIGNAL(errorOccurred(QSerialPort::SerialPortError)), this, SLOT(handleErrorHand(QSerialPort::SerialPortError)));
+
+                /*if(arduino_is_available){
+                    ui->RemoteActivator->setEnabled(true);
+                    ui->messageBox->setVisible(false);
+                    ui->dialogButton->setVisible(false);
+                    ui->retryButton->setVisible(false);
+                }*/
+
+                isConnectedHand = true;
+                break;
+            }         
+        }
+
+        if (!hand_is_available) {
+            // give error message
+            std::cout << "Couldn't find the hand device!" << std::endl;
+
+            //std::cout << "Press any key to continue..." << std::endl;
+            //getch();
+        }
+    } 
 }
 
 void AcquisitionSetup::arduinoReadData(){
@@ -159,7 +239,35 @@ void AcquisitionSetup::arduinoReadData(){
 
         serialBuffer_arduino = serialBuffer_arduino.mid(endlinePos + 2);
         manageSerialData(data);
+        //std::cout << data.toStdString().c_str() << std::endl;
     }
+
+    //std::cout.flush() << std::endl;
+}
+
+void AcquisitionSetup::handReadData() {
+    serialData_hand = hand_device->readAll();
+    serialBuffer_hand += QString::fromStdString(serialData_hand.toStdString());
+
+    //qDebug() << serialBuffer_hand;
+
+    std::string s_data = serialData_hand.toStdString();
+    std::string data_splitted[5];
+    size_t pos = 0;
+    std::string token;
+    int i = 0;
+    while (((pos = s_data.find(",")) != std::string::npos) && i < 5) {
+        token = s_data.substr(0, pos);
+        data_splitted[i] = token;
+        s_data.erase(0, pos + 1);
+        i++;
+    }
+
+    handSteps = QString::fromStdString(data_splitted[0]);
+    finger1Sensor = QString::fromStdString(data_splitted[1]);
+    finger2Sensor = QString::fromStdString(data_splitted[2]);
+    finger3Sensor = QString::fromStdString(data_splitted[3]);
+    finger4Sensor = QString::fromStdString(data_splitted[4]);
 }
 
 void AcquisitionSetup::handleError(QSerialPort::SerialPortError error)
@@ -172,6 +280,38 @@ void AcquisitionSetup::handleError(QSerialPort::SerialPortError error)
         // give error message
         std::cout << "Couldn't find the Arduino!" << std::endl;
     }
+}
+
+void AcquisitionSetup::handleErrorHand(QSerialPort::SerialPortError error)
+{
+    if (error == QSerialPort::ResourceError) {
+        isConnectedHand = false;
+
+        resetAll();
+
+        // give error message
+        std::cout << "Couldn't find the hand device!" << std::endl;
+    }
+}
+
+int AcquisitionSetup::handSendCommand(QString command) {
+
+    if (hand_device->isOpen() && hand_device->isWritable())
+    {
+        hand_device->write(command.toStdString().c_str());
+        hand_device->flush();
+        std::cout << "data has been send" << std::endl;
+        qDebug() << command;
+    }
+    else
+    {
+        std::cout << "Couldn't write to hand serial!" << std::endl;
+
+        isConnectedHand = false;
+        return -1;
+    }
+
+    return 0;
 }
 
 void AcquisitionSetup::manageSerialData(QString command){
@@ -251,7 +391,7 @@ void AcquisitionSetup::manageSerialData(QString command){
 }
 
 void AcquisitionSetup::printInfoCamera(){
-    system("cls");
+    //system("cls");
     for(int i = 0; i < 4; i++){
         if(camConnected[i].compare("") != 0){
             printf("Cam %i\n %s connected\n Mode: %s\n Battery level: %s\n", (i+1),
@@ -260,8 +400,13 @@ void AcquisitionSetup::printInfoCamera(){
         }
     }
 
-    std::cout << "Press any key to continue..." << std::endl;
-    getch();
+    printf("Hand step: %s\n Finger 1: %s\n Finger 2: %s\n Finger 3: %s\n Finger 4: %s\n",
+       handSteps.toStdString().c_str(), finger1Sensor.toStdString().c_str(),
+        finger2Sensor.toStdString().c_str(), finger3Sensor.toStdString().c_str(), finger4Sensor.toStdString().c_str());
+    std::cout << std::endl;
+
+    //std::cout << "Press any key to continue..." << std::endl;
+    //getch();
 }
 
 void AcquisitionSetup::takePicture(){
@@ -300,12 +445,15 @@ int AcquisitionSetup::arduinoUpdateValue(QString command){
 
     if(arduino->isOpen() && arduino->isWritable())
     {
+        std::cout << "data has been send" << std::endl;
+        qDebug() << command;
         arduino->write(command.toStdString().c_str());
         arduino->flush();
     }
     else
     {
-        qDebug() << "Couldn't write to serial!";
+        std::cout << "Couldn't write to serial!" << std::endl;
+
         isConnectedArduino = false;
         return -1;
     }
@@ -335,8 +483,11 @@ void AcquisitionSetup::resetAll(){
 
     n_camera_connected = 0;
     arduino_is_available = false;
-    curr_intensityValue = 500;
+    hand_is_available = false;
+    curr_intensityValue = 512;
     isConnectedArduino = false;
+    isConnectedHand = false;
     currentMode = "video";
     arduino->close();
+    hand_device->close();
 }

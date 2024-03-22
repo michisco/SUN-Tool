@@ -4,6 +4,7 @@
 #include "DevicesPose.cpp"
 #include "ObjectsPose.cpp"
 
+#include <QApplication>
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
@@ -11,6 +12,7 @@
 
 int main(int argc, char *argv[])
 {
+    
     //check if exist the first argument to set number of iterations
     if (argc < 2) {
         std::cout << "usage: ${TARGET_PATH} [Command] [Optional arguments]\n"
@@ -39,7 +41,9 @@ int main(int argc, char *argv[])
             return 0;
         }
         else if (std::string(argv[1]) == "acquire") {
+            QCoreApplication a(argc, argv);
             AcquisitionSetup();
+            return a.exec();
         }
         else if (std::string(argv[1]) == "visualize") {
             if (argc >= 3) {

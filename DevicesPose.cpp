@@ -89,24 +89,25 @@ public:
         int indexError = 0;
         for (int i = 0; i < objectData->size(); i++) {
             std::vector<cv::Point3f> vec_point(objectData->at(i).pos3D_marker.size());
+            //cv::Affine3d obj_param(objectData->at(i).rvec_obj, objectData->at(i).tvec_obj);
 
             //multiply param with object pose matrix
             cv::Affine3d obj_param(objectData->at(i).mat_obj); 
-            cv::Affine3d temp_param = obj_param * param;
+            //cv::Affine3d temp_param = obj_param * param;
 
             for (int j = 0; j < objectData->at(i).pos3D_marker.size(); j++) {
                 //multiply param with the 3D position marker
-                vec_point[j] = temp_param * objectData->at(i).pos3D_marker.at(j);
+                vec_point[j] = obj_param * (param * objectData->at(i).pos3D_marker.at(j));
                 
                 if (_Jac.needed()){
                     for (int p = 0; p < (rvec_temp.rows + tvec_temp.rows); p++) {
                         //multiply Jacobian with object pose matrix
-                        cv::Affine3d temp_paramsJac = paramsJac[p * 2] * obj_param;
-                        cv::Affine3d temp_paramsJac1 = paramsJac[p * 2 + 1] * obj_param;
+                       /* cv::Affine3d temp_paramsJac = obj_param * paramsJac[p * 2];
+                        cv::Affine3d temp_paramsJac1 = paramsJac[p * 2 + 1] * obj_param;*/
 
                         //multiply Jacobian with the 3D position marker
-                        cv::Point3f temp3f_eps = temp_paramsJac * objectData->at(i).pos3D_marker.at(j);
-                        cv::Point3f temp3f_eps1 = temp_paramsJac1 * objectData->at(i).pos3D_marker.at(j);
+                        cv::Point3f temp3f_eps = obj_param * (paramsJac[p * 2] * objectData->at(i).pos3D_marker.at(j));
+                        cv::Point3f temp3f_eps1 = obj_param * (paramsJac[p * 2 + 1] * objectData->at(i).pos3D_marker.at(j));
 
                         std::vector<cv::Point3f> pointJac;
                         pointJac.push_back(temp3f_eps);
@@ -120,13 +121,13 @@ public:
                         if (p < 3) {
                             jac.at<double>(indexError + j * 2, p) = (temp_pts[0].x - temp_pts[1].x) / 2 * eps_rvec;
                             jac.at<double>(indexError + j * 2 + 1, p) = (temp_pts[0].y - temp_pts[1].y) / 2 * eps_rvec;
-                            /*jac.at<double>(indexError + j * 2, p) = cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_rvec) * cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_rvec);
-                            jac.at<double>(indexError + j * 2 + 1, p) = cv::norm( (temp_pts[0].y - temp_pts[1].y) / 2 * eps_rvec) * cv::norm( (temp_pts[0].y - temp_pts[1].y) / 2 * eps_rvec);
+                            /*jac.at<double>(indexError + j * 2, p) += cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_rvec) * cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_rvec);
+                            jac.at<double>(indexError + j * 2 + 1, p) += cv::norm( (temp_pts[0].y - temp_pts[1].y) / 2 * eps_rvec) * cv::norm( (temp_pts[0].y - temp_pts[1].y) / 2 * eps_rvec);
                         */}
                         else {
                             jac.at<double>(indexError + j * 2, p) = (temp_pts[0].x - temp_pts[1].x) / 2 * eps_tvec;
                             jac.at<double>(indexError + j * 2 + 1, p) = (temp_pts[0].y - temp_pts[1].y) / 2 * eps_tvec;
-                           /* jac.at<double>(indexError + j * 2, p) = cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_tvec) * cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_tvec);
+                            /*jac.at<double>(indexError + j * 2, p) = cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_tvec) * cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_tvec);
                             jac.at<double>(indexError + j * 2 + 1, p) = cv::norm( (temp_pts[0].y - temp_pts[1].y) / 2 * eps_tvec) * cv::norm((temp_pts[0].y - temp_pts[1].y) / 2 * eps_tvec);
                         */}
                     }
@@ -141,7 +142,7 @@ public:
             for(int j = 0; j < objectData->at(i).pos3D_marker.size(); j++){
                 err.at<double>(indexError + j * 2) = projectedPts[j].x - objectData->at(i).pos2D_marker[j].x;
                 err.at<double>(indexError + j * 2 + 1) = projectedPts[j].y - objectData->at(i).pos2D_marker[j].y;
-               /* err.at<double>(indexError+j*2) = cv::norm( projectedPts[j].x - objectData->at(i).pos2D_marker[j].x) * cv::norm(projectedPts[j].x - objectData->at(i).pos2D_marker[j].x);
+              /*  err.at<double>(indexError+j*2) = cv::norm( projectedPts[j].x - objectData->at(i).pos2D_marker[j].x)
                 err.at<double>(indexError+j*2+1) = cv::norm( projectedPts[j].y - objectData->at(i).pos2D_marker[j].y) * cv::norm(projectedPts[j].y - objectData->at(i).pos2D_marker[j].y);
             */}
 
@@ -351,7 +352,7 @@ static inline int EstimateFingerPose(std::vector<std::string> imgs_FCam,
                     markers_data.push_back(temp_markerData);
                 }            
             }
-        }
+        }     
         frame_imgs.clear();
     }
 
@@ -386,11 +387,41 @@ static inline int EstimateFingerPose(std::vector<std::string> imgs_FCam,
     ComputeFingerPose(&markers_data, rvec, tvec);
 
     cv::Affine3d res(rvec, tvec);
+    cv::Affine3d res1(rvec, tvec);
+    cv::Affine3d res2(rvec, tvec);
+    //fingerPose_frames.push_back(res.matrix);
 
+    std::cout << "Normal: " << std::endl;
     for (int i = 0; i < res.matrix.rows; i++) {
         for (int j = 0; j < res.matrix.cols; j++)
-            std::cout << res.matrix(i, j) << std::endl;
+            std::cout << res.matrix(i, j) << " ";
     }
+
+    std::cout << std::endl;
+    cv::Affine3d obj_transform(obj_mats.at(0));
+    res1 = res1 * obj_transform.inv();
+    
+    std::cout << "Inverse: " << std::endl;
+    for (int i = 0; i < res1.matrix.rows; i++) {
+        for (int j = 0; j < res1.matrix.cols; j++)
+            std::cout << res1.matrix(i,j) << " ";
+    }
+
+    std::cout << std::endl;
+    res2 = res2 * obj_transform;
+    std::cout << "No inverse: " << std::endl;
+    for (int i = 0; i < res2.matrix.rows; i++) {
+        for (int j = 0; j < res2.matrix.cols; j++)
+            std::cout << res2.matrix(i, j) << " ";
+    }
+
+    std::cout << std::endl;
+   /* std::string filename = "Resources/fingerPose_" + id_finger;
+    bool saveOk = saveObjectPose(
+        filename, fingerPose_frames, imgs_FCam.size());
+
+    if (!saveOk)
+        std::cout << "Error saving file" << std::endl;*/
 
     return 1;
 }
@@ -492,7 +523,7 @@ static inline int EstimateHandPose() {
     ReadHandCoordinates(_3dMarkerFile, &marker_fingers);
 
     //get pose for each finger of the hand device
-    for (int i = 0; i < marker_fingers.size(); i++) {
+    for (int i = 0; i < 1; i++) {
         int res = EstimateFingerPose(imgs_FCam, imgs_TCam, imgs_LCam, imgs_RCam, camMatrix, distCoeffs, cam_tvecs, cam_rvecs, object_rvecs, object_tvecs, object_mats, marker_fingers.at(i));
         if (res < 0)
             return -1;
