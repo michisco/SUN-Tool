@@ -14,6 +14,7 @@ public:
     AcquisitionSetup();
     bool isActivate = false;
     bool isRecording = false;
+    bool isToggleCLS = true; //put TRUE/FALSE if you want enable/disable clear screen option.
     QString camConnected[4] = {"", "", "", ""};
     QString camMode[4] = {"-", "-", "-", "-"};
     QString camBL[4] = {"-", "-", "-", "-"};
@@ -60,5 +61,7 @@ private:
     void printInfoCamera();
     void takePicture();
     void LightUpdateValue(int value);
+    void clearScreen(bool toggle);
+    void waitKey(bool toggle);
 };
 #endif // ACQUISITIONSETUP_H

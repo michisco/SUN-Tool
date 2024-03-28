@@ -31,12 +31,17 @@ class SolveFingerPose : public cv::LMSolver::Callback
     int npoints;
     std::vector<FingerData>* objectData;
     std::vector<cv::Point3f> objPoints;
+    double eps_rvec = 0.1;
+    double eps_tvec = 0.1;
 
 public:
-    SolveFingerPose(std::vector<FingerData>* objdatas)
+    SolveFingerPose(std::vector<FingerData>* objdatas, double eps_t, double eps_r)
     {
         npoints = 0;
         objectData = objdatas;
+        eps_rvec = eps_r;
+        eps_tvec = eps_t;
+
         for (int i = 0; i < objectData->size(); i++)
             npoints += objectData->at(i).id_marker.size();
     }
@@ -52,9 +57,6 @@ public:
         }
 
         std::vector<cv::Affine3d> paramsJac;
-        double eps_tvec = 0.1;
-        double eps_rvec = 0.1;
-
         for (int i = 0; i < 3; i++) {
             cv::Mat rvec_cp = rvec_temp;
 
@@ -89,11 +91,9 @@ public:
         int indexError = 0;
         for (int i = 0; i < objectData->size(); i++) {
             std::vector<cv::Point3f> vec_point(objectData->at(i).pos3D_marker.size());
-            //cv::Affine3d obj_param(objectData->at(i).rvec_obj, objectData->at(i).tvec_obj);
 
             //multiply param with object pose matrix
             cv::Affine3d obj_param(objectData->at(i).mat_obj); 
-            //cv::Affine3d temp_param = obj_param * param;
 
             for (int j = 0; j < objectData->at(i).pos3D_marker.size(); j++) {
                 //multiply param with the 3D position marker
@@ -101,9 +101,6 @@ public:
                 
                 if (_Jac.needed()){
                     for (int p = 0; p < (rvec_temp.rows + tvec_temp.rows); p++) {
-                        //multiply Jacobian with object pose matrix
-                       /* cv::Affine3d temp_paramsJac = obj_param * paramsJac[p * 2];
-                        cv::Affine3d temp_paramsJac1 = paramsJac[p * 2 + 1] * obj_param;*/
 
                         //multiply Jacobian with the 3D position marker
                         cv::Point3f temp3f_eps = obj_param * (paramsJac[p * 2] * objectData->at(i).pos3D_marker.at(j));
@@ -121,15 +118,11 @@ public:
                         if (p < 3) {
                             jac.at<double>(indexError + j * 2, p) = (temp_pts[0].x - temp_pts[1].x) / 2 * eps_rvec;
                             jac.at<double>(indexError + j * 2 + 1, p) = (temp_pts[0].y - temp_pts[1].y) / 2 * eps_rvec;
-                            /*jac.at<double>(indexError + j * 2, p) += cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_rvec) * cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_rvec);
-                            jac.at<double>(indexError + j * 2 + 1, p) += cv::norm( (temp_pts[0].y - temp_pts[1].y) / 2 * eps_rvec) * cv::norm( (temp_pts[0].y - temp_pts[1].y) / 2 * eps_rvec);
-                        */}
+                        }
                         else {
                             jac.at<double>(indexError + j * 2, p) = (temp_pts[0].x - temp_pts[1].x) / 2 * eps_tvec;
                             jac.at<double>(indexError + j * 2 + 1, p) = (temp_pts[0].y - temp_pts[1].y) / 2 * eps_tvec;
-                            /*jac.at<double>(indexError + j * 2, p) = cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_tvec) * cv::norm( (temp_pts[0].x - temp_pts[1].x) / 2 * eps_tvec);
-                            jac.at<double>(indexError + j * 2 + 1, p) = cv::norm( (temp_pts[0].y - temp_pts[1].y) / 2 * eps_tvec) * cv::norm((temp_pts[0].y - temp_pts[1].y) / 2 * eps_tvec);
-                        */}
+                        }
                     }
                 }
             }
@@ -142,9 +135,7 @@ public:
             for(int j = 0; j < objectData->at(i).pos3D_marker.size(); j++){
                 err.at<double>(indexError + j * 2) = projectedPts[j].x - objectData->at(i).pos2D_marker[j].x;
                 err.at<double>(indexError + j * 2 + 1) = projectedPts[j].y - objectData->at(i).pos2D_marker[j].y;
-              /*  err.at<double>(indexError+j*2) = cv::norm( projectedPts[j].x - objectData->at(i).pos2D_marker[j].x)
-                err.at<double>(indexError+j*2+1) = cv::norm( projectedPts[j].y - objectData->at(i).pos2D_marker[j].y) * cv::norm(projectedPts[j].y - objectData->at(i).pos2D_marker[j].y);
-            */}
+            }
 
             indexError += objectData->at(i).pos3D_marker.size()*2;
         }
@@ -195,7 +186,7 @@ static inline void ReadHandCoordinates(std::string marker_3ds, std::vector<Objec
 /// <summary>
 /// Compute finger pose calling LMSolver function.
 /// </summary>
-static inline void ComputeFingerPose(std::vector<FingerData>* objdatas, cv::InputOutputArray _rvec, cv::InputOutputArray _tvec) {
+static inline void ComputeFingerPose(std::vector<FingerData>* objdatas, double eps_t, double eps_r, cv::InputOutputArray _rvec, cv::InputOutputArray _tvec) {
     cv::Mat rvec0 = _rvec.getMat(), tvec0 = _tvec.getMat();
     cv::Mat params(6, 1, CV_64FC1);
     for (int i = 0; i < 3; i++)
@@ -205,7 +196,7 @@ static inline void ComputeFingerPose(std::vector<FingerData>* objdatas, cv::Inpu
     }
 
     //create and call SolveFingerPose function
-    auto createLM = cv::LMSolver::create(cv::makePtr<SolveFingerPose>(objdatas), 1000, 0.01);
+    auto createLM = cv::LMSolver::create(cv::makePtr<SolveFingerPose>(objdatas, eps_t, eps_r), 10000, 0.001);
     int itr = createLM->run(params);
 
     params.rowRange(0, 3).convertTo(rvec0, rvec0.depth());
@@ -227,9 +218,8 @@ static inline void ComputeFingerPose(std::vector<FingerData>* objdatas, cv::Inpu
 /// <param name="obj_tvecs"></param>
 /// <param name="obj_mats">object poses</param>
 /// <param name="marker_info">ids of the finger</param>
-/// <returns> 1 - computation runs correctly 
-///           -1 - error in the computation </returns>
-static inline int EstimateFingerPose(std::vector<std::string> imgs_FCam,
+/// <returns> finger matrix in string </returns>
+static inline cv::Matx44d EstimateFingerPose(std::vector<std::string> imgs_FCam,
                                      std::vector<std::string> imgs_TCam,
                                      std::vector<std::string> imgs_LCam, 
                                      std::vector<std::string> imgs_RCam, 
@@ -283,10 +273,10 @@ static inline int EstimateFingerPose(std::vector<std::string> imgs_FCam,
             || img_LCam.empty()
             || img_RCam.empty()) {
             std::cout << "Image files are empty." << std::endl;
-            return 0;
+            return cv::Matx44d::zeros();
         }
 
-        /* cv::namedWindow("out", cv::WINDOW_NORMAL);
+         /*cv::namedWindow("out", cv::WINDOW_NORMAL);
          cv::resizeWindow("out", 1280, 720);*/
 
         //put all views (4 cameras) in the vector
@@ -361,47 +351,56 @@ static inline int EstimateFingerPose(std::vector<std::string> imgs_FCam,
     int count = 0;
     for (int j = 0; j < marker_ids.size(); j++) {
         for (int i = 0; i < markers_data.size(); i++) {
-            for(int z = 0; z < markers_data.at(i).id_marker.size(); z++)
-            if (markers_data.at(i).id_marker.at(z) == marker_ids.at(j)) {
-                count++;
-            }
+            for (int z = 0; z < markers_data.at(i).id_marker.size(); z++) {
+                if (markers_data.at(i).id_marker.at(z) == marker_ids.at(j)) {
+                    count++;
+                }
+            } 
         }
     }
+
+    std::cout << "Times: " << count << std::endl;
     
     //if the number of detected markers is less of 6 times, returns an error
     if (count < 6) {
         std::cout << "Too few marker detected times: " << count << "for finger " << id_finger << std::endl;
-        return -1;
+        return cv::Matx44d::zeros();
     }
 
     //cv::Mat rvec_temp = cv::Mat::zeros(3,3, CV_64F);
     cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64F);
     //cv::Rodrigues(rvec_temp, rvec);
 
-    rvec.at<double>(0, 0) = 1;
-    rvec.at<double>(1, 0) = 1;
-    rvec.at<double>(2, 0) = 1;
+    rvec.at<double>(0, 0) = 0;
+    rvec.at<double>(1, 0) = 0;
+    rvec.at<double>(2, 0) = 0;
 
     cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64F);
+
     //compute with LMSolver the rvec and tvec of the finger
-    ComputeFingerPose(&markers_data, rvec, tvec);
+    ComputeFingerPose(&markers_data, 0.1, 0.08, rvec, tvec);
+    ComputeFingerPose(&markers_data, 0.1, 0.08, rvec, tvec);
+    ComputeFingerPose(&markers_data, 0.1, 0.08, rvec, tvec);
 
     cv::Affine3d res(rvec, tvec);
     cv::Affine3d res1(rvec, tvec);
     cv::Affine3d res2(rvec, tvec);
     //fingerPose_frames.push_back(res.matrix);
 
-    std::cout << "Normal: " << std::endl;
+    std::string res_mat = "";
+    /*std::cout << "Normal: " << std::endl;*/
     for (int i = 0; i < res.matrix.rows; i++) {
         for (int j = 0; j < res.matrix.cols; j++)
             std::cout << res.matrix(i, j) << " ";
     }
 
-    std::cout << std::endl;
-    cv::Affine3d obj_transform(obj_mats.at(0));
-    res1 = res1 * obj_transform.inv();
+    std::cout << std::endl;;
+
+    //std::cout << std::endl;
+    //cv::Affine3d obj_transform(obj_mats.at(0));
+    //res1 = res1 * obj_transform.inv();
     
-    std::cout << "Inverse: " << std::endl;
+    /*std::cout << "Inverse: " << std::endl;
     for (int i = 0; i < res1.matrix.rows; i++) {
         for (int j = 0; j < res1.matrix.cols; j++)
             std::cout << res1.matrix(i,j) << " ";
@@ -413,9 +412,8 @@ static inline int EstimateFingerPose(std::vector<std::string> imgs_FCam,
     for (int i = 0; i < res2.matrix.rows; i++) {
         for (int j = 0; j < res2.matrix.cols; j++)
             std::cout << res2.matrix(i, j) << " ";
-    }
+    }*/
 
-    std::cout << std::endl;
    /* std::string filename = "Resources/fingerPose_" + id_finger;
     bool saveOk = saveObjectPose(
         filename, fingerPose_frames, imgs_FCam.size());
@@ -423,7 +421,8 @@ static inline int EstimateFingerPose(std::vector<std::string> imgs_FCam,
     if (!saveOk)
         std::cout << "Error saving file" << std::endl;*/
 
-    return 1;
+    markers_data.clear();
+    return res.matrix;
 }
 
 static inline int EstimateHandPose() {
@@ -522,11 +521,16 @@ static inline int EstimateHandPose() {
     std::string _3dMarkerFile = "Resources/HandMarkers.csv";
     ReadHandCoordinates(_3dMarkerFile, &marker_fingers);
 
+    std::vector<cv::Matx44d> finger_matrices;
     //get pose for each finger of the hand device
-    for (int i = 0; i < 1; i++) {
-        int res = EstimateFingerPose(imgs_FCam, imgs_TCam, imgs_LCam, imgs_RCam, camMatrix, distCoeffs, cam_tvecs, cam_rvecs, object_rvecs, object_tvecs, object_mats, marker_fingers.at(i));
-        if (res < 0)
+    for (int i = 0; i < marker_fingers.size(); i++) {
+        cv::Matx44d res = EstimateFingerPose(imgs_FCam, imgs_TCam, imgs_LCam, imgs_RCam, camMatrix, distCoeffs, cam_tvecs, cam_rvecs, object_rvecs, object_tvecs, object_mats, marker_fingers.at(i));
+        if (res == cv::Matx44d::zeros())
             return -1;
-    }   
+
+        finger_matrices.push_back(res);
+    }  
+
+    saveMLPFile("", finger_matrices);
     return 1;
 }

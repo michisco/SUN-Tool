@@ -1,5 +1,6 @@
 #include <iostream>
 #include <fstream>
+#include <string>
 #include <opencv2/highgui.hpp>
 
 inline static bool saveCameraParams(const std::string& filename, cv::Size imageSize, int flags,
@@ -69,6 +70,40 @@ inline static bool saveObjectPose(const std::string& filename, std::vector<cv::M
     // Close the file
     MyFile.close();
 
+    return true;
+}
+
+inline static bool saveMLPFile(const std::string& filename, std::vector<cv::Matx44d> matrices) {
+
+    std::string pathFile = ""; //[INSERT PATH .MLP FILE]
+    std::ifstream myfile;
+    std::ofstream ofile("", std::ios_base::binary | std::ios_base::out);
+    std::string line;
+    myfile.open(pathFile, std::ios_base::binary);
+
+    int count = 1;
+    int i = 0;
+    if (myfile.is_open())
+    {
+        while (std::getline(myfile, line))
+        {         
+            if (count % 6 == 0 && count > 6 && i < matrices.size()) {
+                for (int j = 0; j < matrices.at(i).rows; j++) {
+                    for (int z = 0; z < matrices.at(i).cols; z++)
+                        ofile << matrices.at(i)(j, z) << " " << std::flush;          
+                } 
+                ofile << "\n" << std::flush;
+                i++;
+            }   
+            else {
+                ofile << line << std::endl;
+            }
+            count++;
+        }
+        myfile.close();
+        ofile.close();
+    }
+    
     return true;
 }
 

@@ -43,7 +43,7 @@ int main(int argc, char *argv[])
         else if (std::string(argv[1]) == "acquire") {
             QCoreApplication a(argc, argv);
             AcquisitionSetup();
-            return a.exec();
+            //return a.exec();
         }
         else if (std::string(argv[1]) == "visualize") {
             if (argc >= 3) {

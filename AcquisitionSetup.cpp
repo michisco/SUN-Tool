@@ -2,41 +2,43 @@
 
 #include <QtSerialPort/QSerialPort>
 #include <QtSerialPort/QSerialPortInfo>
-#include <viewerWorker.h>
 #include <QDebug>
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
 #include <conio.h>
 #include <string.h>
+#include <chrono>
+#include <thread>
 
 AcquisitionSetup::AcquisitionSetup(){
     bool isRunningAcquisition = true;
     char opt_menu;
 
     while(isRunningAcquisition){
-        //system("cls");
+        clearScreen(isToggleCLS);
         std::cout << "- Acquisition Setup -" << std::endl;
         if(!isConnectedArduino || !isConnectedHand){
             std::cout << "[C]onnect Arduino&Device \n"
                          "[E]xit" << std::endl;
         }
         else{
-            //system("cls");
+            clearScreen(isToggleCLS);
             std::cout << "Cameras connected " << n_camera_connected <<"/4 - Light intensity value: " << curr_intensityValue << std::endl;
             std::cout << "[T]ake pictures \n"
                          "[M]ode video/photo \n"
                          "[L]ight intensity value \n"
                          "[I]nfo cameras \n"
                          "[R]otate hand device \n"
+                         "[A]utomatic acquisition \n"
                          //"[C]lose Arduino&Device \n"
                          "[E]xit" << std::endl;
 
-            while (arduino->waitForReadyRead(1500)) {
+            while (arduino->waitForReadyRead(1000)) {
                 arduinoReadData();
             }
 
-            while (hand_device->waitForReadyRead(1500)) {
+            while (hand_device->waitForReadyRead(1000)) {
                 handReadData();
             }
         }
@@ -51,8 +53,7 @@ AcquisitionSetup::AcquisitionSetup(){
                 case 'e': case 'E': isRunningAcquisition = false; break;
                 default:{
                     std::cout << "Command not recognized" << std::endl;
-                    //std::cout << "Press any key to continue..." << std::endl;
-                    //getch();
+                    waitKey(isToggleCLS);
                     break;
                 }
             }
@@ -77,14 +78,14 @@ AcquisitionSetup::AcquisitionSetup(){
                     break;
                 }
                 case 'l': case 'L':{
-                    //system("cls");
+                    clearScreen(isToggleCLS);
                     std::cout << "Set intensity light: [0 - 1023] " << std::endl;
                     std::cin >> curr_intensityValue;
                     LightUpdateValue(curr_intensityValue);
                     break;
                 }
                 case 'r': case 'R': {
-                    //system("cls");
+                    clearScreen(isToggleCLS);
                     std::string command = "s 10 2";
                     std::cout << "Set steps and velocity: {example: s 10 2} " << std::endl;
                     std::getline(std::cin >> std::ws, command);
@@ -94,12 +95,56 @@ AcquisitionSetup::AcquisitionSetup(){
                     break;
                 }
                 case 'i': case 'I': printInfoCamera(); break;
-                //case 'c': case 'C': resetAll(); break;
+                case 'a': case 'A': {
+                    clearScreen(isToggleCLS);
+                    std::string velocity = "2";
+                    std::cout << "Set velocity: {example: 2} " << std::endl;
+                    std::cin >> velocity;
+
+                    int seconds_interval = (10 / std::stoi(velocity)) + 1;
+                    takePicture();
+                    std::this_thread::sleep_for(std::chrono::seconds(1));
+
+                    std::string comm = "";
+                    QString val = "";
+
+                    //clock-wise
+                    for (int i = 0; i < 10; i++) {
+                        comm = "s 10 " + velocity;
+                        val = QString::fromStdString(comm);
+                        handSendCommand(QString("%1").arg(val));
+
+                        std::this_thread::sleep_for(std::chrono::seconds(seconds_interval));
+                        takePicture();
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                    }
+
+                    comm = "s 100 -" + velocity;
+                    val = QString::fromStdString(comm);
+                    handSendCommand(QString("%1").arg(val));
+                    std::this_thread::sleep_for(std::chrono::seconds((100 / std::stoi(velocity)) + 1));
+
+                    //counter clock-wise
+                    for (int i = 0; i < 9; i++) {
+                        comm = "s 10 -" + velocity;
+                        val = QString::fromStdString(comm);
+                        handSendCommand(QString("%1").arg(val));
+
+                        std::this_thread::sleep_for(std::chrono::seconds(seconds_interval));
+                        takePicture();
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                    }
+
+                    comm = "s 100 " + velocity;
+                    val = QString::fromStdString(comm);
+                    handSendCommand(QString("%1").arg(val));
+                    std::this_thread::sleep_for(std::chrono::seconds((100 / std::stoi(velocity)) + 1));
+                    break; 
+                }
                 case 'e': case 'E': isRunningAcquisition = false; break;
                 default:{
                     std::cout << "Command not recognized" << std::endl;
-                    //std::cout << "Press any key to continue..." << std::endl;
-                    //getch();
+                    waitKey(isToggleCLS);
                     break;
                 }
             }
@@ -167,8 +212,7 @@ void AcquisitionSetup::on_startArduino(){
             // give error message
             std::cout << "Couldn't find the Arduino!" << std::endl;
 
-            //std::cout << "Press any key to continue..." << std::endl;
-            //getch();
+            waitKey(isToggleCLS);
         }
     }
     
@@ -221,8 +265,7 @@ void AcquisitionSetup::on_startArduino(){
             // give error message
             std::cout << "Couldn't find the hand device!" << std::endl;
 
-            //std::cout << "Press any key to continue..." << std::endl;
-            //getch();
+            waitKey(isToggleCLS);
         }
     } 
 }
@@ -391,7 +434,7 @@ void AcquisitionSetup::manageSerialData(QString command){
 }
 
 void AcquisitionSetup::printInfoCamera(){
-    //system("cls");
+    clearScreen(isToggleCLS);
     for(int i = 0; i < 4; i++){
         if(camConnected[i].compare("") != 0){
             printf("Cam %i\n %s connected\n Mode: %s\n Battery level: %s\n", (i+1),
@@ -405,8 +448,7 @@ void AcquisitionSetup::printInfoCamera(){
         finger2Sensor.toStdString().c_str(), finger3Sensor.toStdString().c_str(), finger4Sensor.toStdString().c_str());
     std::cout << std::endl;
 
-    //std::cout << "Press any key to continue..." << std::endl;
-    //getch();
+    waitKey(isToggleCLS);
 }
 
 void AcquisitionSetup::takePicture(){
@@ -490,4 +532,17 @@ void AcquisitionSetup::resetAll(){
     currentMode = "video";
     arduino->close();
     hand_device->close();
+}
+
+void AcquisitionSetup::clearScreen(bool toggle) {
+    if (toggle) {
+        system("cls");
+    }
+}
+
+void AcquisitionSetup::waitKey(bool toggle) {
+    if (toggle) {
+        std::cout << "Press any key to continue..." << std::endl;
+        getch();
+    }
 }
