@@ -9,35 +9,31 @@
 #include <iostream>
 #include <stdlib.h>
 
+void PrintMessage() {
+    std::cout << "usage: ${TARGET_PATH} [Command] [Optional arguments]\n"
+        "Available command:\n"
+        "acquire - Connect to GoPro cameras to acquire images.\n"
+        "visualize [IMGS_FOLDER_PATH] - Visualize images in the folder and detect their markers.\n"
+        "calibrate [IMGS_FOLDER_PATH] [SAVING_FILE_YML] - Calibrate one camera and save the param file.yml.\n"
+        "camera_position [IMGS_FOLDER_PATH] - Compute camera position from image and save it into a file.yml.\n"
+        "object_position - Compute object position and save it into a file.yml.\n"
+        "hand_position - Compute hand device position and save it into a file.yml.\n"
+        "help - Open the guide." << std::endl;
+}
+
 
 int main(int argc, char *argv[])
 {
     
     //check if exist the first argument to set number of iterations
     if (argc < 2) {
-        std::cout << "usage: ${TARGET_PATH} [Command] [Optional arguments]\n"
-            "Available command:\n"
-            "acquire - Connect to GoPro cameras to acquire images.\n"
-            "visualize [IMGS_FOLDER_PATH] - Visualize images in the folder and detect their markers.\n"
-            "calibrate [IMGS_FOLDER_PATH] [SAVING_FILE_YML] - Calibrate one camera and save the param file.yml.\n"
-            "camera_position [IMGS_FOLDER_PATH] - Compute camera position from image and save it into a file.yml.\n"
-            "object_position - Compute object position and save it into a file.yml.\n"
-            "hand_position - Compute hand device position and save it into a file.yml.\n"
-            "help - Open the guide." << std::endl;
+        PrintMessage();
         return 0;
     }
     else if (argc >= 2) {
         if (std::string(argv[1]) == "help" || argv[1][0] == 'H') {
             std::cout << "--- Help ---" << std::endl;
-            std::cout << "usage: ${TARGET_PATH} [Command] [Optional arguments]\n"
-                "Available command:\n"
-                "acquire - Connect to GoPro cameras to acquire images.\n"
-                "visualize [IMGS_FOLDER_PATH] - Visualize images in the folder and detect their markers.\n"
-                "calibrate [IMGS_FOLDER_PATH] [SAVING_FILE_YML] - Calibrate one camera and save the param file.yml.\n"
-                "camera_position [IMGS_FOLDER_PATH] - Compute camera position from image and save it into a file.yml.\n"
-                "object_position - Compute object position and save it into a file.yml.\n"
-                "hand_position - Compute hand device position and save it into a file.yml.\n"
-                "help - Open this guide." << std::endl;
+            PrintMessage();
             return 0;
         }
         else if (std::string(argv[1]) == "acquire") {

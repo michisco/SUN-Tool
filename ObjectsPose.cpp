@@ -7,6 +7,7 @@
 #include <opencv2/calib3d.hpp>
 #include <opencv2/opencv.hpp>
 #include <opencv2/core/mat.hpp>
+#include <opencv2/core/quaternion.hpp>
 
 #include <iostream>
 
@@ -21,6 +22,42 @@ struct ObjectData {
     cv::Mat cam_matrix;
     cv::Mat dist_coeffs;
 };
+
+static inline void MatrixDifference(std::vector<cv::Matx44d> matrices) {
+
+    std::cout << "Matrix difference" << std::endl;
+    for (int i = 1; i < matrices.size(); i=i+2) {
+        std::cout << std::endl;
+
+        cv::Matx44d residual = matrices.at(i) * matrices.at(i - 1).inv();
+        for (int j = 0; j < 4; j++) {
+            for (int z = 0; z < 4; z++)
+                std::cout << residual(j, z) << " ";
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }
+
+    /*for (int i = i < matrices.size() / 2 + 2; i < matrices.size() - 1; i++) {
+        cv::Matx44d residual = matrices.at(i) * matrices.at(i - 1).inv();
+        for (int j = 0; j < 4; j++) {
+            for (int z = 0; z < 4; z++)
+                std::cout << residual(i, j) << " ";
+            std::cout << std::endl;
+        }
+        std::cout << std::endl;
+    }*/
+}
+
+static inline cv::Mat EulerAnglesToRodrigues(cv::Mat rvec_m) {
+    cv::Quat<double> quaternion = cv::Quat<double>::createFromEulerAngles(cv::Vec3d(rvec_m.at<double>(0), rvec_m.at<double>(1), rvec_m.at<double>(2)), cv::QuatEnum::EXT_XYZ);
+
+    cv::Matx<double, 3, 3> matQuat = quaternion.toRotMat3x3();
+    cv::Mat QuatTorvec = cv::Mat::zeros(3, 1, CV_64F);
+    cv::Rodrigues(matQuat, QuatTorvec);
+    
+    return QuatTorvec;
+}
 
 class SolveObjectPose : public cv::LMSolver::Callback
 {
@@ -49,31 +86,34 @@ public:
 
         std::vector<cv::Affine3d> paramsJac;
         double eps_tvec = 0.1;
-        double eps_rvec = 0.1;
+        double eps_rvec = 0.017;
 
         for (int i = 0; i < 3; i++) {
             cv::Mat rvec_cp = rvec_temp;
 
             rvec_cp.at<double>(i) += eps_rvec;
-            paramsJac.push_back(cv::Affine3d(rvec_cp, tvec_temp));
+            
+            cv::Mat quatRvec = EulerAnglesToRodrigues(rvec_cp);
+            paramsJac.push_back(cv::Affine3d(quatRvec, tvec_temp));
 
             rvec_cp.at<double>(i) -= eps_rvec * 2;
-            paramsJac.push_back(cv::Affine3d(rvec_cp, tvec_temp));
+            quatRvec = EulerAnglesToRodrigues(rvec_cp);
+            paramsJac.push_back(cv::Affine3d(quatRvec, tvec_temp));
         }
 
         for (int i = 0; i < 3; i++) {
             cv::Mat tvec_cp = tvec_temp;
+            cv::Mat quatRvec = EulerAnglesToRodrigues(rvec_temp);
 
             tvec_cp.at<double>(i) += eps_tvec;
-            paramsJac.push_back(cv::Affine3d(rvec_temp, tvec_cp));
+            paramsJac.push_back(cv::Affine3d(quatRvec, tvec_cp));
 
             tvec_cp.at<double>(i) -= eps_tvec * 2;
-            paramsJac.push_back(cv::Affine3d(rvec_temp, tvec_cp));
+            paramsJac.push_back(cv::Affine3d(quatRvec, tvec_cp));
         }
 
-        //cv::Mat R = cv::Mat::zeros(3, 3, CV_64F);
-        //cv::Rodrigues(rvec_temp, R);
-        cv::Affine3d param(rvec_temp, tvec_temp);
+        cv::Mat quatvec = EulerAnglesToRodrigues(rvec_temp);
+        cv::Affine3d param(quatvec, tvec_temp);
 
         _err.create(npoints * 2, 1, CV_64FC1);
         cv::Mat err = _err.getMat();
@@ -179,10 +219,15 @@ static inline void ComputeObjectPose(std::vector<ObjectData> *objdatas, cv::Inpu
 
     auto createLM = cv::LMSolver::create(cv::makePtr<SolveObjectPose>(objdatas), 1000, 0.01);
     int itr = createLM->run(params);
-    int itr2 = createLM->run(params);
+    if (itr >= 1000)
+        createLM->run(params);
 
-    params.rowRange(0, 3).convertTo(rvec0, rvec0.depth());
-    params.rowRange(3, 6).convertTo(tvec0, tvec0.depth());
+    cv::Mat rvec_params(3, 1, CV_64FC1);
+    for (int i = 0; i < 3; i++)
+        rvec_params.at<double>(i, 0) = params.at<double>(i, 0);
+    
+    params.rowRange(0, 3).convertTo(_rvec, _rvec.depth());
+    params.rowRange(3, 6).convertTo(_tvec, _tvec.depth());
 }
 
 static inline int EstimateObjectPose() {
@@ -284,8 +329,18 @@ static inline int EstimateObjectPose() {
     std::vector<cv::Vec3d> objPose_tvecs;
     std::vector<cv::Mat> frame_imgs;
 
+    //cv::Mat rvec_temp = cv::Mat::zeros(3,3, CV_64F);
+    cv::Mat rvec = cv::Mat::zeros(3, 1, CV_64F);
+    //cv::Rodrigues(rvec_temp, rvec);
+
+    rvec.at<double>(0, 0) = 0;
+    rvec.at<double>(1, 0) = 0;
+    rvec.at<double>(2, 0) = 0;
+
+    cv::Mat tvec = cv::Mat::zeros(3, 1, CV_64F);
+
     //compute position object on each time frame
-    for (int k = 0; k < imgs_FCam.size(); k++) {
+    for (int k = 0; k < imgs_FCam.size()/2 + 1; k++) {
         cv::Mat img_FCam, img_TCam, img_LCam, img_RCam;
         img_FCam = cv::imread(imgs_FCam.at(k));
         img_TCam = cv::imread(imgs_TCam.at(k));
@@ -293,9 +348,9 @@ static inline int EstimateObjectPose() {
         img_RCam = cv::imread(imgs_RCam.at(k));
 
         std::cout << "Analizing images: " << imgs_FCam.at(k) <<
-            ", " << imgs_TCam.at(k) <<
             ", " << imgs_LCam.at(k) <<
-            ", " << imgs_RCam.at(k) << std::endl;
+            ", " << imgs_RCam.at(k) <<
+            ", " << imgs_TCam.at(k) << std::endl;
 
         // Error Handling
         if (img_FCam.empty()
@@ -367,29 +422,129 @@ static inline int EstimateObjectPose() {
                 markers_data.push_back(temp_markerData);
             }
         }
-
-        //cv::Mat rvec_temp = cv::Mat::zeros(3,3, CV_64F);
-        cv::Mat rvec = cv::Mat::zeros(3,1, CV_64F);
-        //cv::Rodrigues(rvec_temp, rvec);
-
-        rvec.at<double>(0,0) = 1;
-        rvec.at<double>(1,0) = 1;
-        rvec.at<double>(2,0) = 1;
-
-        cv::Mat tvec = cv::Mat::zeros(3,1, CV_64F);
+    
         ComputeObjectPose(&markers_data, rvec, tvec);
 
-        cv::Affine3d res(rvec, tvec);
+        cv::Vec3d rvecRes = EulerAnglesToRodrigues(rvec);
+
+        cv::Affine3d res(rvecRes, tvec);
         objPose_frames.push_back(res.matrix);
-        objPose_rvecs.push_back(rvec);
+        objPose_rvecs.push_back(rvecRes);
         objPose_tvecs.push_back(tvec);
 
         markers_data.clear();
         frame_imgs.clear();
     }
 
+    rvec.at<double>(0, 0) = 0;
+    rvec.at<double>(1, 0) = 0;
+    rvec.at<double>(2, 0) = 0;
+
+    tvec = cv::Mat::zeros(3, 1, CV_64F);
+
+    //compute position object on each time frame
+    for (int k = imgs_FCam.size() / 2 + 1; k < imgs_FCam.size(); k++) {
+        cv::Mat img_FCam, img_TCam, img_LCam, img_RCam;
+        img_FCam = cv::imread(imgs_FCam.at(k));
+        img_TCam = cv::imread(imgs_TCam.at(k));
+        img_LCam = cv::imread(imgs_LCam.at(k));
+        img_RCam = cv::imread(imgs_RCam.at(k));
+
+        std::cout << "Analizing images: " << imgs_FCam.at(k) <<
+            ", " << imgs_LCam.at(k) <<
+            ", " << imgs_RCam.at(k) <<
+            ", " << imgs_TCam.at(k) << std::endl;
+
+        // Error Handling
+        if (img_FCam.empty()
+            || img_TCam.empty()
+            || img_LCam.empty()
+            || img_RCam.empty()) {
+            std::cout << "Image files are empty." << std::endl;
+            return 0;
+        }
+
+        /* cv::namedWindow("out", cv::WINDOW_NORMAL);
+         cv::resizeWindow("out", 1280, 720);*/
+
+        frame_imgs.push_back(img_FCam);
+        frame_imgs.push_back(img_LCam);
+        frame_imgs.push_back(img_RCam);
+        frame_imgs.push_back(img_TCam);
+
+        cv::Mat imageCopy;
+        //see different view of the object
+        for (int i = 0; i < frame_imgs.size(); i++) {
+            std::vector<int> ids;
+            std::vector<std::vector<cv::Point2f> > corners, cornersNotRejected;
+            frame_imgs[i].copyTo(imageCopy);
+
+            detector.detectMarkers(frame_imgs.at(i), corners, ids);
+
+            ObjectData temp_markerData;
+
+            if (!ids.empty()) {
+                // Calculate 2d pose for each marker
+                for (size_t j = 0; j < ids.size(); j++) {
+                    if (CheckObjectIDs(marker_info.GetIds(), ids.at(j))) {
+                        cornersNotRejected.push_back(corners[j]);
+                        // Find 2d pose
+                        float x_sum = corners[j][0].x + corners[j][1].x + corners[j][2].x + corners[j][3].x;
+                        float y_sum = corners[j][0].y + corners[j][1].y + corners[j][2].y + corners[j][3].y;
+
+                        cv::Point2f center_marker = cv::Point2f(x_sum * .25f, y_sum * .25f);
+
+                        //save each single marker found on the struct data array to give to the function later
+                        auto [idMarker, posMarker] = marker_info.FindByID(ids.at(j));
+                        if (idMarker != 0) {
+                            temp_markerData.id_marker.push_back(idMarker);
+                            temp_markerData.pos3D_marker.push_back(posMarker);
+                        }
+                        else
+                            std::cout << "error" << std::endl;
+                        temp_markerData.pos2D_marker.push_back(center_marker);
+                    }
+                }
+            }
+
+            //if (!temp_markerData.id_marker.empty()) {
+            //    cv::aruco::drawDetectedMarkers(imageCopy, cornersNotRejected, temp_markerData.id_marker);
+            //}
+
+            //cv::imshow("out", imageCopy);
+            //// Wait for any keystroke
+            //cv::waitKey(0);
+
+            if (!temp_markerData.id_marker.empty()) {
+                //save camera params
+                temp_markerData.rvec_cam = cam_rvecs.at(i);
+                temp_markerData.tvec_cam = cam_tvecs.at(i);
+                temp_markerData.cam_matrix = camMatrix.at(i);
+                temp_markerData.dist_coeffs = distCoeffs.at(i);
+
+                markers_data.push_back(temp_markerData);
+            }
+        }
+
+        ComputeObjectPose(&markers_data, rvec, tvec);
+
+        cv::Vec3d rvecRes = EulerAnglesToRodrigues(rvec);
+
+        cv::Affine3d res(rvecRes, tvec);
+        objPose_frames.push_back(res.matrix);
+        objPose_rvecs.push_back(rvecRes);
+        objPose_tvecs.push_back(tvec);
+
+        markers_data.clear();
+        frame_imgs.clear();
+    }
+
+    //MatrixDifference(objPose_frames);
+
     bool saveOk = saveObjectPose(
         "Resources/objectPose", objPose_frames, objPose_rvecs, objPose_tvecs, imgs_FCam.size());
+
+    saveBoxMLPFile("", objPose_frames);
 
     if (!saveOk)
        std::cout << "Error saving file" << std::endl;

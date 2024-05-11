@@ -3,6 +3,7 @@
 
 #include <QtSerialPort/QSerialPort>
 #include <QTimer>
+#include <QTime>
 #include <QThread>
 #include <QObject>
 
@@ -20,6 +21,7 @@ public:
     QString camBL[4] = {"-", "-", "-", "-"};
     QString currentMode = "video";
 
+    int speedDevice = 0;
     QString handSteps = "0";
     QString finger1Sensor = "4095";
     QString finger2Sensor = "4095";
@@ -63,5 +65,10 @@ private:
     void LightUpdateValue(int value);
     void clearScreen(bool toggle);
     void waitKey(bool toggle);
+    void turnHand(int steps, int velocity);
+
+    void delay(int n);
+    void printHelpGuide();
+
 };
 #endif // ACQUISITIONSETUP_H

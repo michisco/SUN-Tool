@@ -168,6 +168,7 @@ static inline int VisualizeMarkers(char folder_path[]) {
         std::vector<std::vector<cv::Point2f> > corners;
         detector.detectMarkers(imageCopy, corners, ids);
 
+
         // if at least one marker detected
         if (ids.size() > 0) {
             cv::aruco::drawDetectedMarkers(imageCopy, corners, ids);
@@ -178,9 +179,7 @@ static inline int VisualizeMarkers(char folder_path[]) {
         // Wait for any keystroke
         cv::waitKey(0);
         std::string path = "visual_" + std::to_string(k) + ".jpg";
-        cv::imwrite(path, imageCopy);
-
-        
+        cv::imwrite(path, imageCopy);       
     }
 
     cv::destroyWindow("out");
@@ -394,7 +393,7 @@ static inline int EstimateCameraPose(char folder_path[]) {
 
         std::string fileToSave = "Resources/camPos_" + side_cam + ".yml";
         bool saveOk = saveCameraPose(
-            fileToSave, rvec[0], tvec[0], repError);
+            fileToSave, rvec[0], tvec[0], cam_position, repError);
     }
 
     return 1;

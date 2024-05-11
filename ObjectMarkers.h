@@ -12,9 +12,9 @@ class ObjectMarkers{
     public:
         ObjectMarkers(){}
 
-        void Set(int id, cv::Point3f pos){
+        void Set(int id, cv::Point3f center){
             id_markers.push_back(id);
-            marker3d_position.push_back(pos);
+            marker3d_position.push_back(center);
         }
 
         std::tuple<int, cv::Point3f> Get(int i){
@@ -32,10 +32,10 @@ class ObjectMarkers{
         std::tuple<int, cv::Point3f> FindByID(int id){
             for(int i = 0; i < id_markers.size(); i++){
                 if(id_markers.at(i) == id){
-                    return {id_markers.at(i), marker3d_position.at(i)};
+                    return {id_markers.at(i), marker3d_position.at(i) };
                 }
             }
-            return {0, cv::Point3f(0, 0, 0)};
+            return {0, cv::Point3f(0, 0, 0) };
         }
 };
 

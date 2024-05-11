@@ -21,7 +21,7 @@ inline static bool saveCameraParams(const std::string& filename, cv::Size imageS
     return true;
 }
 
-inline static bool saveCameraPose(const std::string& filename, cv::Vec3d r, cv::Vec3d t, std::vector<float> errors) {
+inline static bool saveCameraPose(const std::string& filename, cv::Vec3d r, cv::Vec3d t, cv::Mat m, std::vector<float> errors) {
 
     cv::FileStorage fs(filename, cv::FileStorage::WRITE);
     if (!fs.isOpened())
@@ -30,6 +30,7 @@ inline static bool saveCameraPose(const std::string& filename, cv::Vec3d r, cv::
     char buf[1024];
     fs << "rvec" << r;
     fs << "tvec" << t;
+    fs << "cameraPosition" << m;
     fs << "repError" << errors;
 
     return true;
@@ -73,11 +74,11 @@ inline static bool saveObjectPose(const std::string& filename, std::vector<cv::M
     return true;
 }
 
-inline static bool saveMLPFile(const std::string& filename, std::vector<cv::Matx44d> matrices) {
+inline static bool saveHandMLPFile(const std::string& filename, std::vector<cv::Matx44d> matrices) {
 
-    std::string pathFile = ""; //[INSERT PATH .MLP FILE]
+    std::string pathFile = "D:/Michele/Documents/TESI/Projects/boxHand.mlp";
     std::ifstream myfile;
-    std::ofstream ofile("", std::ios_base::binary | std::ios_base::out);
+    std::ofstream ofile("D:/Michele/Documents/TESI/Projects/box_handNEW.mlp", std::ios_base::binary | std::ios_base::out);
     std::string line;
     myfile.open(pathFile, std::ios_base::binary);
 
@@ -104,6 +105,40 @@ inline static bool saveMLPFile(const std::string& filename, std::vector<cv::Matx
         ofile.close();
     }
     
+    return true;
+}
+
+inline static bool saveBoxMLPFile(const std::string& filename, std::vector<cv::Matx44d> matrices) {
+
+    std::string pathFile = "D:/Michele/Documents/TESI/Projects/boxTest.mlp";
+    std::ifstream myfile;
+    std::ofstream ofile("D:/Michele/Documents/TESI/Projects/box_NEW.mlp", std::ios_base::binary | std::ios_base::out);
+    std::string line;
+    myfile.open(pathFile, std::ios_base::binary);
+
+    int count = 1;
+    int i = 0;
+    if (myfile.is_open())
+    {
+        while (std::getline(myfile, line))
+        {
+            if (count % 6 == 0 && count > 6 && i < matrices.size()) {
+                for (int j = 0; j < matrices.at(i).rows; j++) {
+                    for (int z = 0; z < matrices.at(i).cols; z++)
+                        ofile << matrices.at(i)(j, z) << " " << std::flush;
+                }
+                ofile << "\n" << std::flush;
+                i++;
+            }
+            else {
+                ofile << line << std::endl;
+            }
+            count++;
+        }
+        myfile.close();
+        ofile.close();
+    }
+
     return true;
 }
 

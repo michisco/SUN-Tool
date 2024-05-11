@@ -2,7 +2,9 @@
 
 #include <QtSerialPort/QSerialPort>
 #include <QtSerialPort/QSerialPortInfo>
+#include <QApplication>
 #include <QDebug>
+
 #include <stdio.h>
 #include <iostream>
 #include <stdlib.h>
@@ -11,142 +13,151 @@
 #include <chrono>
 #include <thread>
 
+
 AcquisitionSetup::AcquisitionSetup(){
     bool isRunningAcquisition = true;
-    char opt_menu;
+    std::string opt_menu;
+    char* comm;
 
     while(isRunningAcquisition){
         clearScreen(isToggleCLS);
         std::cout << "- Acquisition Setup -" << std::endl;
-        if(!isConnectedArduino || !isConnectedHand){
-            std::cout << "[C]onnect Arduino&Device \n"
-                         "[E]xit" << std::endl;
+        if(!isConnectedArduino && !isConnectedHand){
+            std::cout << "[C]onnect Arduino and device \n"
+                         "[Q]uit" << std::endl;        
+        }
+        else if (!isConnectedArduino) {
+            std::cout << "[C]onnect Arduino \n"
+                "[E]xit" << std::endl;
+        }
+        else if (!isConnectedHand) {
+            std::cout << "[C]onnect device \n"
+                "[E]xit" << std::endl;
         }
         else{
-            clearScreen(isToggleCLS);
-            std::cout << "Cameras connected " << n_camera_connected <<"/4 - Light intensity value: " << curr_intensityValue << std::endl;
-            std::cout << "[T]ake pictures \n"
-                         "[M]ode video/photo \n"
-                         "[L]ight intensity value \n"
-                         "[I]nfo cameras \n"
-                         "[R]otate hand device \n"
-                         "[A]utomatic acquisition \n"
-                         //"[C]lose Arduino&Device \n"
-                         "[E]xit" << std::endl;
-
-            while (arduino->waitForReadyRead(1000)) {
-                arduinoReadData();
-            }
-
-            while (hand_device->waitForReadyRead(1000)) {
-                handReadData();
-            }
+            std::cout << "Current Light intensity value: " << curr_intensityValue << std::endl;
+            std::cout << "Insert command - for help, digit 'h' or 'help'" << std::endl;           
         }
 
-        std::cin >> opt_menu;
+        std::cin.getline(comm, 50);
+        opt_menu = comm;
 
-        
+        std::istringstream stream(opt_menu);
+        std::string token;
+        std::string arr[3] = { "", "", "" };
+        int index = 0;
+
+        while (std::getline(stream, token, ' ')) {
+            // Add the token to the array 
+            arr[index++] = token;
+        }
 
         if(!isConnectedArduino || !isConnectedHand){
-            switch(opt_menu){
-                case 'c': case 'C': on_startArduino(); break;
-                case 'e': case 'E': isRunningAcquisition = false; break;
-                default:{
-                    std::cout << "Command not recognized" << std::endl;
+            if (opt_menu == "c" || opt_menu == "C")
+                on_startArduino();
+            else if (opt_menu == "q" || opt_menu == "Q")
+                isRunningAcquisition = false;
+            else {
+                std::cout << "Command not recognized" << std::endl;
+                waitKey(isToggleCLS);
+            }
+        }
+        else{
+            if (arr[0] == "p" || arr[0] == "play")
+                takePicture();
+            else if (arr[0] == "h" || arr[0] == "help")
+                printHelpGuide();
+            else if (arr[0] == "q" || arr[0] == "quit")
+                isRunningAcquisition = false;
+            else if (arr[0] == "i" || arr[0] == "info")
+                printInfoCamera();
+            else if (arr[0] == "m" || arr[0] == "mode") {
+                if (isRecording) {
+                    QString val = "stop";
+                    int res = arduinoUpdateValue(QString("%1").arg(val));
+                    if (res == 0)
+                        isRecording = false;
+                }
+
+                if (currentMode.compare("video") == 0)
+                    currentMode = "photo";
+                else
+                    currentMode = "video";
+            }
+            else if (arr[0] == "l" || arr[0] == "light") {
+                if (arr[1] == "") {
+                    std::cout << "Missing parameter: light intensity value missing." << std::endl;
                     waitKey(isToggleCLS);
-                    break;
                 }
-            }
-        }
-        else{
-            switch(opt_menu){
-                case 't': case 'T': takePicture(); break;
-                case 'm': case 'M': {
-                    if(isRecording){
-                        QString val = "stop";
-                        int res = arduinoUpdateValue(QString("%1").arg(val));
-                        if(res == 0)
-                           isRecording = false;
-                    }
-
-                    if(currentMode.compare("video") == 0)
-                        currentMode = "photo";
-                    else
-                        currentMode = "video";
-
-                    arduinoUpdateValue(QString("%1").arg(currentMode));
-                    break;
-                }
-                case 'l': case 'L':{
-                    clearScreen(isToggleCLS);
-                    std::cout << "Set intensity light: [0 - 1023] " << std::endl;
-                    std::cin >> curr_intensityValue;
+                else {
+                    curr_intensityValue = stoi(arr[1]);
                     LightUpdateValue(curr_intensityValue);
-                    break;
+                } 
+            }
+            else if (arr[0] == "r" || arr[0] == "rotate") {
+                if (arr[1] == "") {
+                    std::cout << "Missing parameter: degree step value missing." << std::endl;
+                    waitKey(isToggleCLS);
                 }
-                case 'r': case 'R': {
-                    clearScreen(isToggleCLS);
-                    std::string command = "s 10 2";
-                    std::cout << "Set steps and velocity: {example: s 10 2} " << std::endl;
-                    std::getline(std::cin >> std::ws, command);
-                   
+                else if (arr[2] == "") {
+                    std::cout << "Missing parameter: velocity value missing." << std::endl;
+                    waitKey(isToggleCLS);
+                }
+                else {
+                    
+                    std::string command = "a ";
+                    command.append(arr[1]);
+                    command.append(" ");                
+                    command.append(arr[2]);
+                    command.append(" ");
+                    command.append(arr[2]);
+
                     QString val = QString::fromStdString(command);
                     handSendCommand(QString("%1").arg(val));
-                    break;
                 }
-                case 'i': case 'I': printInfoCamera(); break;
-                case 'a': case 'A': {
-                    clearScreen(isToggleCLS);
-                    std::string velocity = "2";
-                    std::cout << "Set velocity: {example: 2} " << std::endl;
-                    std::cin >> velocity;
+            }
+            else if (arr[0] == "a" || arr[0] == "auto") {
+                if (arr[1] == "") {
+                    std::cout << "Missing parameter: degree step value missing." << std::endl;
+                    waitKey(isToggleCLS);
+                }
+                else if (arr[2] == "") {
+                    std::cout << "Missing parameter: velocity value missing." << std::endl;
+                    waitKey(isToggleCLS);
+                }
+                else {
+                    int degree_step = stoi(arr[1]);
+                    int velocity = stoi(arr[2]);
 
-                    int seconds_interval = (10 / std::stoi(velocity)) + 1;
                     takePicture();
-                    std::this_thread::sleep_for(std::chrono::seconds(1));
-
-                    std::string comm = "";
-                    QString val = "";
+                    delay(650);
 
                     //clock-wise
-                    for (int i = 0; i < 10; i++) {
-                        comm = "s 10 " + velocity;
-                        val = QString::fromStdString(comm);
-                        handSendCommand(QString("%1").arg(val));
+                    turnHand(degree_step, velocity);
 
-                        std::this_thread::sleep_for(std::chrono::seconds(seconds_interval));
-                        takePicture();
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
-                    }
-
-                    comm = "s 100 -" + velocity;
-                    val = QString::fromStdString(comm);
+                    //back to initial position
+                    std::string command = "a 0 500 500";
+                    QString val = QString::fromStdString(command);
                     handSendCommand(QString("%1").arg(val));
-                    std::this_thread::sleep_for(std::chrono::seconds((100 / std::stoi(velocity)) + 1));
+
+                    delay(-1);
 
                     //counter clock-wise
-                    for (int i = 0; i < 9; i++) {
-                        comm = "s 10 -" + velocity;
-                        val = QString::fromStdString(comm);
-                        handSendCommand(QString("%1").arg(val));
+                    turnHand(-degree_step, velocity);
 
-                        std::this_thread::sleep_for(std::chrono::seconds(seconds_interval));
-                        takePicture();
-                        std::this_thread::sleep_for(std::chrono::seconds(1));
-                    }
-
-                    comm = "s 100 " + velocity;
-                    val = QString::fromStdString(comm);
+                    //back to initial position
+                    command = "a 0 500 500";
+                    val = QString::fromStdString(command);
                     handSendCommand(QString("%1").arg(val));
-                    std::this_thread::sleep_for(std::chrono::seconds((100 / std::stoi(velocity)) + 1));
-                    break; 
+
+                    delay(-1);
+                    if (currentMode == "video")
+                        takePicture();
                 }
-                case 'e': case 'E': isRunningAcquisition = false; break;
-                default:{
-                    std::cout << "Command not recognized" << std::endl;
-                    waitKey(isToggleCLS);
-                    break;
-                }
+            }
+            else {
+                std::cout << "Command not recognized" << std::endl;
+                waitKey(isToggleCLS);
             }
         }
     }
@@ -187,7 +198,6 @@ void AcquisitionSetup::on_startArduino(){
                 arduino->setParity(QSerialPort::NoParity);
                 arduino->setStopBits(QSerialPort::OneStop);
                 arduino->setFlowControl(QSerialPort::NoFlowControl);
-                arduino->setDataTerminalReady(true);
                 QObject::connect(arduino, SIGNAL(readyRead()), this, SLOT(arduinoReadData()));
                 QObject::connect(arduino, SIGNAL(errorOccurred(QSerialPort::SerialPortError)), this, SLOT(handleError(QSerialPort::SerialPortError)));
 
@@ -244,7 +254,7 @@ void AcquisitionSetup::on_startArduino(){
                 hand_device->setParity(QSerialPort::NoParity);
                 hand_device->setStopBits(QSerialPort::OneStop);
                 hand_device->setFlowControl(QSerialPort::NoFlowControl);
-                hand_device->setDataTerminalReady(true);
+                hand_device->setReadBufferSize(0);
 
                 QObject::connect(hand_device, SIGNAL(readyRead()), this, SLOT(handReadData()));
                 QObject::connect(hand_device, SIGNAL(errorOccurred(QSerialPort::SerialPortError)), this, SLOT(handleErrorHand(QSerialPort::SerialPortError)));
@@ -289,28 +299,18 @@ void AcquisitionSetup::arduinoReadData(){
 }
 
 void AcquisitionSetup::handReadData() {
-    serialData_hand = hand_device->readAll();
-    serialBuffer_hand += QString::fromStdString(serialData_hand.toStdString());
+    serialData_hand = hand_device->readLine(2000);
+    QList<QByteArray> tokens = serialData_hand.split(',');
+    speedDevice = tokens[1].toFloat();
 
-    //qDebug() << serialBuffer_hand;
-
-    std::string s_data = serialData_hand.toStdString();
-    std::string data_splitted[5];
-    size_t pos = 0;
-    std::string token;
-    int i = 0;
-    while (((pos = s_data.find(",")) != std::string::npos) && i < 5) {
-        token = s_data.substr(0, pos);
-        data_splitted[i] = token;
-        s_data.erase(0, pos + 1);
-        i++;
-    }
-
-    handSteps = QString::fromStdString(data_splitted[0]);
+    /*handSteps = QString::fromStdString(data_splitted[0]);
     finger1Sensor = QString::fromStdString(data_splitted[1]);
     finger2Sensor = QString::fromStdString(data_splitted[2]);
     finger3Sensor = QString::fromStdString(data_splitted[3]);
-    finger4Sensor = QString::fromStdString(data_splitted[4]);
+    finger4Sensor = QString::fromStdString(data_splitted[4]);*/
+
+    //std::cout << data_splitted[0] << " " << data_splitted[1] << std::endl;
+
 }
 
 void AcquisitionSetup::handleError(QSerialPort::SerialPortError error)
@@ -455,6 +455,7 @@ void AcquisitionSetup::takePicture(){
 
     bool isVideoMode = false;
 
+    std::cout << "PHOTO" << std::endl;
     for(int i = 0; i < 4; i++){
         if(camConnected[i].compare("") != 0){
             if(camMode[i].compare("Video") == 0)
@@ -481,6 +482,8 @@ void AcquisitionSetup::takePicture(){
         QString val = "start";
         arduinoUpdateValue(QString("%1").arg(val));
     }
+
+    //take data from sensors
 }
 
 int AcquisitionSetup::arduinoUpdateValue(QString command){
@@ -505,6 +508,7 @@ int AcquisitionSetup::arduinoUpdateValue(QString command){
 
 void AcquisitionSetup::LightUpdateValue(int value)
 {
+    std::cout << value << std::endl;
     QString val = "light " + QString::number(value);
     arduinoUpdateValue(QString("%1").arg(val));
 }
@@ -545,4 +549,55 @@ void AcquisitionSetup::waitKey(bool toggle) {
         std::cout << "Press any key to continue..." << std::endl;
         getch();
     }
+}
+
+void AcquisitionSetup::turnHand(int steps, int velocity) {
+    QString val = "";
+    std::string command = "";
+    int shift = steps;
+    for (int i = 0; i < 10; i++) {
+        command = "a " + std::to_string(shift) + " " + std::to_string(velocity) + " " + std::to_string(velocity);
+        
+        std::cout << command << std::endl;
+        val = QString::fromStdString(command);
+        handSendCommand(QString("%1").arg(val));
+
+        shift = shift + steps;
+
+        delay(-1);
+        if (currentMode == "photo") {
+            takePicture();
+            delay(650);
+        }    
+    }
+}
+
+void AcquisitionSetup::printHelpGuide() {
+    std::cout << "usage: [Command] [Optional arguments]\n"
+        "Available command:\n"
+        "p / play - Take picture or start/stop video recording.\n"
+        "m / mode - Switching photo/video mode.\n"
+        "l / light [light intensity value] - Set intensity light between [0, 1023] values. \n"
+        "i / info - Show camera information.\n"
+        "r / rotate [position] [velocity] - Move manually the hand device.\n"
+        "a / auto [position] [velocity] - Start automatic acquisition process.\n"
+        "q / quit - Exit by program.\n"
+        "help - Open the guide." << std::endl;
+
+    waitKey(isToggleCLS);
+}
+
+void AcquisitionSetup::delay(int n)
+{
+    int add_ms = n;
+    if (add_ms < 0) {
+        while (speedDevice > 0)
+            QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
+
+        add_ms = 350;
+    }
+    
+    QTime dieTime = QTime::currentTime().addMSecs(add_ms);
+    while (QTime::currentTime() < dieTime)
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 100);
 }

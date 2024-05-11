@@ -26,6 +26,7 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 
 HEADERS += \
     AcquisitionSetup.h \
+    DeviceMarkers.h \
     ObjectMarkers.h
 
 ROOT_DIR = $${PWD}\..\..\..\..\..\..
