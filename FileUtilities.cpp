@@ -76,9 +76,9 @@ inline static bool saveObjectPose(const std::string& filename, std::vector<cv::M
 
 inline static bool saveHandMLPFile(const std::string& filename, std::vector<cv::Matx44d> matrices) {
 
-    std::string pathFile = "D:/Michele/Documents/TESI/Projects/boxHand.mlp";
+    std::string pathFile = "MLPs/boxHand.mlp";
     std::ifstream myfile;
-    std::ofstream ofile("D:/Michele/Documents/TESI/Projects/box_handNEW.mlp", std::ios_base::binary | std::ios_base::out);
+    std::ofstream ofile("MLPs/box_handNEW.mlp", std::ios_base::binary | std::ios_base::out);
     std::string line;
     myfile.open(pathFile, std::ios_base::binary);
 
@@ -110,9 +110,9 @@ inline static bool saveHandMLPFile(const std::string& filename, std::vector<cv::
 
 inline static bool saveBoxMLPFile(const std::string& filename, std::vector<cv::Matx44d> matrices) {
 
-    std::string pathFile = "D:/Michele/Documents/TESI/Projects/boxTest.mlp";
+    std::string pathFile = "MLPs/box.mlp";
     std::ifstream myfile;
-    std::ofstream ofile("D:/Michele/Documents/TESI/Projects/box_NEW.mlp", std::ios_base::binary | std::ios_base::out);
+    std::ofstream ofile("MLPs/box_NEW.mlp", std::ios_base::binary | std::ios_base::out);
     std::string line;
     myfile.open(pathFile, std::ios_base::binary);
 
