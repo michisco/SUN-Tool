@@ -16,6 +16,8 @@ SOURCES += \
         CalibrationCamera.cpp \
         DevicesPose.cpp \
         FileUtilities.cpp \
+        arduinodevice.cpp \
+        handDevice.cpp \
         ObjectsPose.cpp \
         main.cpp
 
@@ -27,7 +29,9 @@ else: unix:!android: target.path = /opt/$${TARGET}/bin
 HEADERS += \
     AcquisitionSetup.h \
     DeviceMarkers.h \
-    ObjectMarkers.h
+    ObjectMarkers.h \
+    arduinodevice.h \
+    handDevice.h
 
 ROOT_DIR = $${PWD}\..\..\..\..\..\..
 OPENCV_DIR = $${ROOT_DIR}\OpenCV
