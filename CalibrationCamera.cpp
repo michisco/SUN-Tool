@@ -186,6 +186,62 @@ static inline int VisualizeMarkers(char folder_path[]) {
     return 1;
 }
 
+static inline int VisualizeUndistorted(char folder_path[], char file_config_path[]) {
+
+    std::vector<std::string> imgs;
+    for (const auto& entry : fs::directory_iterator(folder_path))
+        imgs.push_back(entry.path().string());
+
+    cv::Mat image, undistorted;
+    cv::Mat camMatrix, distCoeffs;
+
+    std::cout << folder_path << std::endl;
+    std::cout << file_config_path << std::endl;
+
+    cv::aruco::DetectorParameters detectorParams = cv::aruco::DetectorParameters();
+    cv::aruco::Dictionary dictionary = cv::aruco::getPredefinedDictionary(cv::aruco::DICT_6X6_250);
+    cv::aruco::ArucoDetector detector(dictionary, detectorParams);
+
+    bool readOk = readCameraParams(file_config_path, camMatrix, distCoeffs);
+    if (!readOk) {
+        std::cout << "Invalid camera file" << std::endl;
+        return 0;
+    }
+
+    cv::namedWindow("Distorted Image", cv::WINDOW_NORMAL);
+    cv::resizeWindow("Distorted Image", 1280, 720);
+
+    cv::namedWindow("Undistorted Image", cv::WINDOW_NORMAL);
+    cv::resizeWindow("Undistorted Image", 1280, 720);
+
+    for (int k = 0; k < imgs.size(); k++) {
+        std::cout << k << std::endl;
+        image = cv::imread(imgs.at(k));
+        //image.copyTo(imageCopy);
+
+        // Error Handling
+        if (image.empty()) {
+            std::string errorMsg = "Image " + imgs.at(k);
+            //throw invalid_argument(errorMsg + " file is empty.");
+        }
+       
+        // undistort
+        undistort(image, undistorted, camMatrix, distCoeffs);
+
+        // Display the original and undistorted images    
+        imshow("Distorted Image", image);
+        imshow("Undistorted Image", undistorted);
+        std::cout << "Visualizing image " << imgs.at(k).c_str() << std::endl;
+        // Wait for any keystroke
+        cv::waitKey(0);
+        std::string path = "visual_" + std::to_string(k) + ".jpg";
+        cv::imwrite(path, undistorted);
+    }
+
+    cv::destroyWindow("out");
+    return 1;
+}
+
 static inline int CalibrationCamera(char folder_path[], std::string fileToSave) {
     std::vector<std::vector<cv::Point3f>> _3Dpoints;
     std::vector<std::vector<cv::Point2f>> _2Dpoints;
@@ -372,6 +428,7 @@ static inline int EstimateCameraPose(char folder_path[]) {
 
         cv::Mat R;
         cv::Rodrigues(rvec, R);
+
         cv::Mat R_T = R.t();
         float axisLength = 0.5f * ((float)5 * (20.f + 0.025f) +
                    0.025f);
@@ -388,12 +445,21 @@ static inline int EstimateCameraPose(char folder_path[]) {
         // Wait for any keystroke
         cv::waitKey(0);
 
-        cv::Mat cam_position = -R_T * (cv::Mat) tvec[0];
+        cv::Mat cam_position = -R_T * (cv::Mat) tvec[0];    
+        for (int i = 0; i < 3; i++)
+            cam_position.at<double>(i) = -cam_position.at<double>(i);
+
         std::cout << imgs.at(k) << ", Camera Position: " << cam_position << std::endl;
+
+        for (int i = 3; i < 9; i++) {
+            //if (i % 3 != 0)
+            R.at<double>(i) *= -1;
+        }
+        std::cout << imgs.at(k) << ", Camera Rotation Matrix: " << R << std::endl;
 
         std::string fileToSave = "Resources/camPos_" + side_cam + ".yml";
         bool saveOk = saveCameraPose(
-            fileToSave, rvec[0], tvec[0], cam_position, repError);
+            fileToSave, rvec[0], tvec[0], cam_position, R, repError);
     }
 
     return 1;

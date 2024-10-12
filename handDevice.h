@@ -6,6 +6,9 @@
 #include <QTimer>
 #include <QTime>
 
+#include <tuple>
+#include <queue>
+
 class HandDevice : public QObject
 {
     Q_OBJECT
@@ -13,6 +16,8 @@ public:
     HandDevice(QObject *parent = 0);
     bool isConnected() const;
     int getSpeed();
+    std::tuple<int, int, int, int> getFingerData();
+    std::tuple<int, int, int, int> getAvgFingerData();
     void rotateHand(int position, int velocity);
     void startConnection();
 
@@ -29,10 +34,15 @@ private:
 
     int speedDevice = 0;
     int handSteps = 0;
-    int finger1Sensor = 0;
-    int finger2Sensor = 0;
-    int finger3Sensor = 0;
-    int finger4Sensor = 0;
+    int finger1Sensor;
+    int finger2Sensor;
+    int finger3Sensor;
+    int finger4Sensor;
+
+    std::queue<int> finger1Sensors;
+    std::queue<int> finger2Sensors;
+    std::queue<int> finger3Sensors;
+    std::queue<int> finger4Sensors;
 
     void connectToDevice();
     int sendCommand(QString command);

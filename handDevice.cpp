@@ -60,6 +60,31 @@ int HandDevice::getSpeed(){
     return speedDevice;
 }
 
+std::tuple<int, int, int, int> HandDevice::getFingerData() {
+    return std::make_tuple(finger1Sensor, finger2Sensor, finger3Sensor, finger4Sensor);
+}
+
+std::tuple<int, int, int, int> HandDevice::getAvgFingerData() {
+    int sum_finger1 = 0;
+    int sum_finger2 = 0;
+    int sum_finger3 = 0;
+    int sum_finger4 = 0;
+    int n = finger1Sensors.size();
+
+    while (!finger1Sensors.empty()) {
+        sum_finger1 += finger1Sensors.front();
+        sum_finger2 += finger2Sensors.front();
+        sum_finger3 += finger3Sensors.front();
+        sum_finger4 += finger4Sensors.front();
+
+        finger1Sensors.pop();
+        finger2Sensors.pop();
+        finger3Sensors.pop();
+        finger4Sensors.pop();
+    }
+    return std::make_tuple((sum_finger1/n), (sum_finger2 / n), (sum_finger3 / n), (sum_finger4 / n));
+}
+
 void HandDevice::rotateHand(int position, int velocity){
     std::string command = "a " + std::to_string(position) + " " + std::to_string(velocity) + " " + std::to_string(velocity);
 
@@ -86,21 +111,37 @@ int HandDevice::sendCommand(QString command){
 }
 
 void HandDevice::readData() {
-    hand_device->waitForReadyRead(15);
+    hand_device->waitForReadyRead(25);
 
     serialData_hand = hand_device->readLine(2000);
     QString current_time = QDateTime::currentDateTime().toString();
 
     QList<QByteArray> tokens = serialData_hand.split(',');
-    speedDevice = tokens[1].toFloat();
+    speedDevice = tokens[5].toFloat();
 
-    /*handSteps = QString::fromStdString(data_splitted[0]);
-    finger1Sensor = QString::fromStdString(data_splitted[1]);
-    finger2Sensor = QString::fromStdString(data_splitted[2]);
-    finger3Sensor = QString::fromStdString(data_splitted[3]);
-    finger4Sensor = QString::fromStdString(data_splitted[4]);*/
+    if (tokens[0].toInt() > 0) {
+       /* finger1Sensor = tokens[0].toInt();
+        finger2Sensor = tokens[1].toInt();
+        finger3Sensor = tokens[2].toInt();
+        finger4Sensor = tokens[3].toInt();*/
 
-    //std::cout << data_splitted[0] << " " << data_splitted[1] << std::endl;
+        if (finger1Sensors.size() > 10) {
+            finger1Sensors.pop();
+            finger2Sensors.pop();
+            finger3Sensors.pop();
+            finger4Sensors.pop();
+        }
+
+        finger1Sensors.push(tokens[0].toInt());
+        finger2Sensors.push(tokens[1].toInt());
+        finger3Sensors.push(tokens[2].toInt());
+        finger4Sensors.push(tokens[3].toInt());
+    }
+        
+    /*std::cout << finger1Sensor << ", "
+        << finger2Sensor << ", "
+        << finger3Sensor << ", "
+        << finger4Sensor << std::endl;*/
 }
 
 void HandDevice::handleError(QSerialPort::SerialPortError error)

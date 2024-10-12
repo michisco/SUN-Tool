@@ -21,7 +21,7 @@ inline static bool saveCameraParams(const std::string& filename, cv::Size imageS
     return true;
 }
 
-inline static bool saveCameraPose(const std::string& filename, cv::Vec3d r, cv::Vec3d t, cv::Mat m, std::vector<float> errors) {
+inline static bool saveCameraPose(const std::string& filename, cv::Vec3d r, cv::Vec3d t, cv::Mat m, cv::Mat m_rot, std::vector<float> errors) {
 
     cv::FileStorage fs(filename, cv::FileStorage::WRITE);
     if (!fs.isOpened())
@@ -31,6 +31,7 @@ inline static bool saveCameraPose(const std::string& filename, cv::Vec3d r, cv::
     fs << "rvec" << r;
     fs << "tvec" << t;
     fs << "cameraPosition" << m;
+    fs << "rotationMatrix" << m_rot;
     fs << "repError" << errors;
 
     return true;
@@ -139,6 +140,23 @@ inline static bool saveBoxMLPFile(const std::string& filename, std::vector<cv::M
         ofile.close();
     }
 
+    return true;
+}
+
+inline static bool saveCSVData(const std::string filename, std::vector<std::vector<int>> fingers_data) {
+    std::fstream fout;
+    std::string path_filename = "Resources/" + filename + ".csv";
+    fout.open(path_filename, std::ios::out | std::ios::app);
+    fout << "thumb, index, medium, pinkie\n";
+
+    for (int i = 0; i < fingers_data.size(); i++) {
+        fout << fingers_data[i][0] << ", "
+            << fingers_data[i][1] << ", "
+            << fingers_data[i][2] << ", "
+            << fingers_data[i][3] << "\n";
+    }
+
+    fout.close();
     return true;
 }
 

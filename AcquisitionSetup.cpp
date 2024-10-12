@@ -12,6 +12,9 @@
 #include <string.h>
 #include <chrono>
 #include <thread>
+#include <iomanip>
+#include <ctime>
+#include <sstream>
 
 
 AcquisitionSetup::AcquisitionSetup(){
@@ -83,8 +86,10 @@ AcquisitionSetup::AcquisitionSetup(){
                 printHelpGuide();
             else if (arr[0] == "q" || arr[0] == "quit")
                 isRunningAcquisition = false;
-            else if (arr[0] == "i" || arr[0] == "info")
-                m_pArduino->printInfoCamera(); // printInfoCamera();
+            else if (arr[0] == "i" || arr[0] == "info") {
+                m_pArduino->printInfoCamera();// printInfoCamera();
+                waitKey(isToggleCLS);
+            }            
             else if (arr[0] == "m" || arr[0] == "mode") {
                 /*if (isRecording) {
                     QString val = "stop";
@@ -143,11 +148,14 @@ AcquisitionSetup::AcquisitionSetup(){
                     waitKey(isToggleCLS);
                 }
                 else {
+                    fingersData.clear();
                     int degree_step = stoi(arr[1]);
                     int velocity = stoi(arr[2]);
 
-                    m_pArduino->takePicture();//takePicture();                
-                    delay(1000);
+                    delay(100);
+                    m_pArduino->takePicture();//takePicture();  
+                    collectingFingerData();
+                    delay(5000);
 
                     //clock-wise
                     turnHand(degree_step, velocity);
@@ -172,8 +180,26 @@ AcquisitionSetup::AcquisitionSetup(){
                     delay(-1);
                     if (currentMode == "video")
                         m_pArduino->takePicture(); //takePicture();
+                    
+                    auto t = std::time(nullptr);
+                    auto tm = *std::localtime(&t);
+
+                    std::ostringstream oss;
+                    oss << std::put_time(&tm, "%d%m%Y_%H%M");
+                    auto str = oss.str();
+                    saveCSVData(str, fingersData);
                 }
             }
+            else if (arr[0] == "w" || arr[0] == "write") {
+                if (arr[1] == "") {
+                    std::cout << "Missing parameter: file name missing." << std::endl;
+                    waitKey(isToggleCLS);
+                }
+                else
+                    saveCSVData(arr[1], fingersData);
+            }
+            else if (arr[0] == "d" || arr[0] == "delete")
+                fingersData.clear();
             else {
                 std::cout << "Command not recognized" << std::endl;
                 waitKey(isToggleCLS);
@@ -596,9 +622,12 @@ void AcquisitionSetup::turnHand(int steps, int velocity) {
         shift = shift + steps;
 
         delay(-1);
+        delay(100);
         if (currentMode == "photo") {
             m_pArduino->takePicture(); //takePicture();
-            delay(1500);
+            //take sensors data
+            collectingFingerData();
+            delay(5000);
         }    
     }
 }
@@ -612,10 +641,23 @@ void AcquisitionSetup::printHelpGuide() {
         "i / info - Show camera information.\n"
         "r / rotate [position] [velocity] - Move manually the hand device.\n"
         "a / auto [position] [velocity] - Start automatic acquisition process.\n"
+        "w / write [name_file] - Write in a csv file all sensor data acquired.\n"
+        "d / delete - Clear all sensor data acquired.\n"
         "q / quit - Exit by program.\n"
         "help - Open the guide." << std::endl;
 
     waitKey(isToggleCLS);
+}
+
+void AcquisitionSetup::collectingFingerData() {
+    int finger1, finger2, finger3, finger4;
+    std::vector<int> temp_data;
+    std::tie(finger1, finger2, finger3, finger4) = m_pDevice->getAvgFingerData();//m_pDevice->getFingerData();
+    temp_data.push_back(finger1);
+    temp_data.push_back(finger2);
+    temp_data.push_back(finger3);
+    temp_data.push_back(finger4);
+    fingersData.push_back(temp_data);
 }
 
 void AcquisitionSetup::delay(int n)

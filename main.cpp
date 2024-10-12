@@ -43,7 +43,8 @@ int main(int argc, char *argv[])
         }
         else if (std::string(argv[1]) == "visualize") {
             if (argc >= 3) {
-                VisualizeMarkers(argv[2]);
+                //VisualizeMarkers(argv[2]);
+                VisualizeUndistorted(argv[2], argv[3]);
             }
             else {
                 std::cout << "error: missing folder path. usage: ${TARGET_PATH} visualize [IMGS_FOLDER_PATH]" << std::endl;

@@ -43,6 +43,7 @@ private slots:
 private:
     bool arduino_is_available;
     bool hand_is_available;
+    std::vector<std::vector<int>> fingersData;
     /*bool isConnectedArduino = false;
     bool isConnectedHand = false;
     int n_camera_connected = 0;
@@ -69,6 +70,7 @@ private:
     void printInfoCamera();
     void takePicture();
     void LightUpdateValue(int value);*/
+    void collectingFingerData();
     void clearScreen(bool toggle);
     void waitKey(bool toggle);
     void turnHand(int steps, int velocity);
