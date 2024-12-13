@@ -79,7 +79,7 @@ inline static bool saveHandMLPFile(const std::string& filename, std::vector<cv::
 
     std::string pathFile = "MLPs/boxHand.mlp";
     std::ifstream myfile;
-    std::ofstream ofile("MLPs/box_handNEW.mlp", std::ios_base::binary | std::ios_base::out);
+    std::ofstream ofile("MLPs/handEstimation.mlp", std::ios_base::binary | std::ios_base::out);
     std::string line;
     myfile.open(pathFile, std::ios_base::binary);
 
@@ -111,34 +111,46 @@ inline static bool saveHandMLPFile(const std::string& filename, std::vector<cv::
 
 inline static bool saveBoxMLPFile(const std::string& filename, std::vector<cv::Matx44d> matrices) {
 
-    std::string pathFile = "MLPs/box.mlp";
-    std::ifstream myfile;
-    std::ofstream ofile("MLPs/box_NEW.mlp", std::ios_base::binary | std::ios_base::out);
+    std::ofstream ofile("MLPs/boxEstimations.mlp", std::ios_base::binary | std::ios_base::out);
     std::string line;
-    myfile.open(pathFile, std::ios_base::binary);
 
-    int count = 1;
-    int i = 0;
-    if (myfile.is_open())
-    {
-        while (std::getline(myfile, line))
-        {
-            if (count % 6 == 0 && count > 6 && i < matrices.size()) {
-                for (int j = 0; j < matrices.at(i).rows; j++) {
-                    for (int z = 0; z < matrices.at(i).cols; z++)
-                        ofile << matrices.at(i)(j, z) << " " << std::flush;
-                }
-                ofile << "\n" << std::flush;
-                i++;
-            }
-            else {
-                ofile << line << std::endl;
-            }
-            count++;
-        }
-        myfile.close();
-        ofile.close();
+    ofile << "<!DOCTYPE MeshLabDocument>\n" << std::flush;
+    ofile << "<MeshLabProject>\n" << std::flush;
+    ofile << " <MeshGroup>\n" << std::flush;
+    ofile << "  <MLMesh label=\"box.ply\" visible=\"1\" idInFile=\"-1\" filename=\"box.ply\">\n" << std::flush;
+    ofile << "   <MLMatrix44>\n" << std::flush;
+    ofile << "1 0 0 0 0 1 0 0 0 0 1 0 0 0 0 1 \n" << std::flush;
+    ofile << "</MLMatrix44>\n" << std::flush;
+
+    ofile << "   <RenderingOption pointSize=\"3\" boxColor=\"234 234 234 255\" solidColor=\"192 192 192 255\" wireWidth=\"1\" pointColor=\"252 233 79 255\" wireColor=\"64 64 64 255\">100001010000000000000100000001010110000010100000000100111010100000001001</RenderingOption>\n" << std::flush;
+    ofile << "  </MLMesh>\n" << std::flush;
+    ofile << "  <MLMesh label=\"Rotate" << 0 << "\" visible=\"0\" idInFile=\"-1\" filename=\"object.ply\">\n" << std::flush;
+    ofile << "   <MLMatrix44>\n" << std::flush;
+    for (int j = 0; j < matrices.at(0).rows; j++) {
+        for (int z = 0; z < matrices.at(0).cols; z++)
+            ofile << matrices.at(0)(j, z) << " " << std::flush;
     }
+    ofile << "\n" << std::flush;
+    ofile << "</MLMatrix44>\n" << std::flush;
+
+    for (int i = 1; i < matrices.size(); i++) {
+        ofile << "   <RenderingOption pointSize=\"3\" boxColor=\"234 234 234 255\" solidColor=\"192 192 192 255\" wireWidth=\"1\" pointColor=\"252 233 79 255\" wireColor=\"64 64 64 255\">100001000000000000000100000001010100000010100000000100111011110000001001</RenderingOption>\n" << std::flush;
+        ofile << "  </MLMesh>\n" << std::flush;
+        ofile << "  <MLMesh label=\"Rotate" << i << "\" visible=\"0\" idInFile=\"-1\" filename=\"object.ply\">\n" << std::flush;
+        ofile << "   <MLMatrix44>\n" << std::flush;
+        for (int j = 0; j < matrices.at(i).rows; j++) {
+            for (int z = 0; z < matrices.at(i).cols; z++)
+                ofile << matrices.at(i)(j, z) << " " << std::flush;
+        }
+        ofile << "\n" << std::flush;
+        ofile << "</MLMatrix44>\n" << std::flush;
+    }
+    ofile << "   <RenderingOption pointSize=\"3\" boxColor=\"234 234 234 255\" solidColor=\"192 192 192 255\" wireWidth=\"1\" pointColor=\"252 233 79 255\" wireColor=\"64 64 64 255\">100001000000000000000100000001010100000010100000000100111011110000001001</RenderingOption>\n" << std::flush;
+    ofile << "  </MLMesh>\n" << std::flush;
+    ofile << " </MeshGroup>\n" << std::flush;
+    ofile << " <RasterGroup/>\n" << std::flush;
+    ofile << "</MeshLabProject>\n" << std::flush;
+    ofile.close();
 
     return true;
 }

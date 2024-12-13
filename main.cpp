@@ -43,11 +43,18 @@ int main(int argc, char *argv[])
         }
         else if (std::string(argv[1]) == "visualize") {
             if (argc >= 3) {
-                //VisualizeMarkers(argv[2]);
-                VisualizeUndistorted(argv[2], argv[3]);
+                VisualizeMarkers(argv[2]);
             }
             else {
                 std::cout << "error: missing folder path. usage: ${TARGET_PATH} visualize [IMGS_FOLDER_PATH]" << std::endl;
+            }
+        }
+        else if (std::string(argv[1]) == "visualize_undistort") {
+            if (argc >= 4) {
+                VisualizeUndistorted(argv[2], argv[3]);
+            }
+            else {
+                std::cout << "error: missing folder path. usage: ${TARGET_PATH} visualize_undistort [IMGS_FOLDER_PATH] [FILE_CONFIG_PATH]" << std::endl;
             }
         }
         else if (std::string(argv[1]) == "calibrate") {
